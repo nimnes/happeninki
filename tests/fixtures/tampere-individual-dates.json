@@ -1,0 +1,43 @@
+{
+  "_id": "6a6844d4bc3a9300070496f3",
+  "defaultStartDate": "2026-10-05T10:15:00.000Z",
+  "defaultEndDate": "2026-10-05T11:00:00.000Z",
+  "pageType": "event",
+  "privacy": "public",
+  "hideAddress": false,
+  "locations": [
+    {
+      "address": "Ysti ry, Insinöörinkatu 30, 33720 Tampere"
+    }
+  ],
+  "globalContentCategories": [
+    "consert"
+  ],
+  "categories": [
+    "6170601b7a45476ff366cb18",
+    "630797cb72c77169d3dd1272"
+  ],
+  "event": {
+    "datesType": "individual-dates",
+    "callToActionsPublishingDateDefined": false,
+    "marketingAreaType": "none-area",
+    "dates": [
+      {
+        "start": "2026-10-05T10:15:00.000Z",
+        "end": "2026-10-05T11:00:00.000Z",
+        "isSoldOut": false
+      }
+    ],
+    "start": "2026-10-05T10:15:00.000Z",
+    "end": "2026-10-05T11:00:00.000Z",
+    "maxParticipants": null,
+    "minParticipants": null,
+    "urlPurchaseTicket": "",
+    "urlSignUp": "",
+    "locationsType": "event-with-location",
+    "isBoosting": false
+  },
+  "name": "Konsertti: Duo Väreet",
+  "descriptionShort": "Laulaja Anna Katariina ja kitaristi Teemu Kulmakorpi",
+  "descriptionLong": "<p>Duo Väreet on tamperelainen kokoonpano, jossa esiintyvät valovoimainen laulaja Anna Katariina sekä moniin eri tunnelmiin taipuva kitaristi Teemu Kulmakorpi. Ohjelmistomme koostuu muun muassa vanhoista ja uusista suomenkielisistä kappaleista, englanninkielisestä jazzista, ja erikoisuutena löytyy myös portugalinkielistä bossa novaa.</p><p><br /></p><p>2.9. klo 10.00 Kämmenniemen lähitori, Seurakuntatila Aunes, Aunessalmenkatu 23, 34240 Kämmenniemi</p><p>5.10. klo 13.15 Ysti ry, Insinöörinkatu 30, 33720 Tampere</p><p>20.10. klo 12.30 Tesoman lähitori, Tesomankatu 4, 33310 Tampere</p><p>2.12. klo 13.30 Kaukaharjun lähitori, Keskisenkatu 13–15, 33710 Tampere </p><p>3.12. klo 13.00 Pappilanpuiston lähitori, Kourutaltankatu 2 C 1, 33560 Tampere</p><p>16.12. klo 13.00 Keinupuistokeskus, Orivedenkatu 28, 33720 Tampere</p><p>21.12. klo 13.00 Kalevankulma, Iloa Arkeen pysäkit, Väinämöisenkatu 25, 33540 Tampere</p><p><br /></p><p>Tilaisuudet ovat kaikille avoimia ja maksuttomia. Esityksen kesto n. 45 min. ​</p><p>Tapahtumassa noudatetaan turvallisemman tilan periaatteita.</p><p>Esteettömyystiedot löytyvät täältä: <a href=\"https://www.yst.net/yhteydenotto/\" rel=\"noopener noreferrer\" target=\"_blank\">Yhteystiedot :: www.yst.net</a> </p><p>Muutokset mahdollisia.</p><p>Järj. Tampereen kaupunki, Kaupunkikulttuuriyksikkö</p>"
+}

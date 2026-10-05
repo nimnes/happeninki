@@ -1,0 +1,68 @@
+name: Publish Tampere events
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+      timezone: "Europe/Helsinki"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Preview or publish"
+        type: choice
+        options: [preview, publish]
+        default: preview
+      initialize:
+        description: "First launch only: create event history if no release exists"
+        type: boolean
+        default: false
+      translate_preview:
+        description: "Use Ollama to translate the first 10 preview events"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: happeninki-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHANNEL_RU: ${{ secrets.TELEGRAM_CHANNEL_RU }}
+      TELEGRAM_CHANNEL_EN: ${{ secrets.TELEGRAM_CHANNEL_EN }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Verify implementation
+        run: python -m unittest discover -s tests -v
+      - name: Collect and publish events
+        env:
+          REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
+          INITIALIZE: ${{ inputs.initialize || false }}
+          TRANSLATE_PREVIEW: ${{ inputs.translate_preview || false }}
+        run: |
+          args=(--mode "$REQUESTED_MODE" --release-state)
+          if [ "$INITIALIZE" = "true" ]; then args+=(--initialize); fi
+          if [ "$TRANSLATE_PREVIEW" = "true" ]; then args+=(--translate); fi
+          python -m happeninki "${args[@]}"
+      - name: Save preview or emergency recovery database
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-output-${{ github.run_id }}
+          path: |
+            data/preview.json
+            data/events.db
+          if-no-files-found: ignore
+          retention-days: 7

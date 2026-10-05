@@ -1,0 +1,81 @@
+{
+  "_id": "6ab665b161e7640007b4fe57",
+  "defaultStartDate": "2026-10-06T21:00:00.000Z",
+  "defaultEndDate": "2027-02-06T22:00:00.000Z",
+  "pageType": "event",
+  "privacy": "public",
+  "price": {
+    "min": 0,
+    "max": 16
+  },
+  "hideAddress": false,
+  "locations": [
+    {
+      "address": "Alaverstaanraitti 5, 33101 Tampere",
+      "location_id": "location-1790338215658-220"
+    }
+  ],
+  "globalContentCategories": [
+    "museums and galleries",
+    "museums",
+    "exhibitions"
+  ],
+  "categories": [],
+  "event": {
+    "datesType": "schedule",
+    "callToActionsPublishingDateDefined": false,
+    "marketingAreaType": "none-area",
+    "isBoosting": false
+  },
+  "schedule": {
+    "entries": [
+      {
+        "dayOfWeek": "tue",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      },
+      {
+        "dayOfWeek": "wed",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      },
+      {
+        "dayOfWeek": "thu",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      },
+      {
+        "dayOfWeek": "fri",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      },
+      {
+        "dayOfWeek": "sat",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      },
+      {
+        "dayOfWeek": "sun",
+        "startTime": "1970-01-01T08:00:00.000Z",
+        "endTime": "1970-01-01T16:00:00.000Z",
+        "location_id": "location-1790338215658-220",
+        "isSoldOut": false
+      }
+    ],
+    "start": "2026-10-06T21:00:00.000Z",
+    "end": "2027-02-06T22:00:00.000Z"
+  },
+  "name": "Laukauksia jäältä! – Jukka Raution 30-vuotisjuhlanäyttely",
+  "descriptionShort": "Uusi valokuvanäyttely esittelee Jukka Raution jääkiekkovalokuvia Liigasta, MM-kisoista ja olympialaisista.",
+  "descriptionLong": "<p>Jukka Rautio on suomalaisen jääkiekkokuvauksen uranuurtaja ja salamatekniikan edelläkävijä. Raution työ on vaikuttanut merkittävästi suomalaisen urheilukuvauksen visuaaliseen ilmeeseen yli kolmen vuosikymmenen ajan. Tapparan kuuluisan -68 ikäluokan kasvatti eli ja hengitti jääkiekon maailmaa jo Vuorentaustan alakoulun kaukalolta aina Hakametsän kiekkopyhättöön saakka.</p><p><br /></p><p>1986 alkoi jääkiekon rinnalla freelance-kuvaajan ura Urpo Lahtisen ja Lehtimiesten aikauslehtimaailmassa. Lopullisesti maila vaihtui kameraan vuonna 1991 ja uusi pelipaikka löytyi kaukalon laidalta. Hän asensi Liiga-kaudella 1993–1994 Hakametsän jäähalliin ensimmäisen Suomessa toteutetun kattosalamajärjestelmän ja nosti kotimaisen jääkiekkokuvauksen teknisen ja taiteellisen tason uudelle aikakaudelle.</p><p><br /></p><p>Rautio on kuvannut lähes kaikille Suomen johtaville lehtitaloille, mainostoimistoille ja kirjakustantamoille sekä toiminut Kansainvälisen Jääkiekkoliiton IIHF:n virallisena kuvaajana jääkiekon MM-kilpailuissa vuosina 1998–2011. Hän toimi myös Torinon 2006 ja Vancouverin 2010 olympiajääkiekon IIHF-kuvaajana .</p><p><br /></p><p>Pitkän uransa aikana Rautio vastasi Jääkiekon SM-liigan keräilykorttien kuvatuotannosta vuosina 1993–2021, toimi Jääkiekkolehden pääkuvaajana lähes kolmen vuosikymmenen ajan ja on toteuttanut SM-liigan kausikuvaukset vuosina 2002–2026. Hänen kuvansa ovat tallentaneet suomalaisen jääkiekon historian suuria hetkiä, pelaajalegendoja ja lajin jatkuvaa muutosta ainutlaatuisella tavalla.</p><p><br /></p><p>Raution jääkiekkoaiheisiin teoksiin kuuluvat laaja Liigan Laukauksia -kirjasarja (2008–2016, 9 osaa), juhlateos Liigatähdet sekä Leijonien Olympiataival – Sotshin olympiakiekko 2014. Teokset muodostavat merkittävän visuaalisen dokumentin suomalaisen jääkiekon modernista historiasta.</p><p><br /></p><p>Tämä näyttely kokoaa yhteen vuosikymmenten työn jääkiekon huipulta – kuvia vauhdista, voimasta, tunteesta ja ratkaisevista hetkistä jäällä.</p><p>Näyttely toteutetaan yhteistyössä Vapriikin ja Suomen Jääkiekkomuseon kanssa.</p><p><br /></p>"
+}

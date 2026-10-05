@@ -1,0 +1,40 @@
+timezone = "Europe/Helsinki"
+languages = ["ru", "en"]
+municipalities = ["Tampere", "Nokia", "Ylöjärvi", "Pirkkala", "Kangasala", "Lempäälä"]
+categories = ["music", "exhibitions", "festivals", "food", "culture"]
+# First launch covers one calendar month; later scans look further ahead.
+discovery_days = 365
+max_events_per_run = 100
+run_budget_seconds = 1080
+exclude_title_patterns = ["(?i)\\b\\w*(kurssi|kurssit|harrastusryhmä|harrastusryhmät|viikkotunti|viikkotunnit|digiopastus|digiopastukset)\\b"]
+
+[ollama]
+url = "https://ollama.com/api/chat"
+model = "gemma4:31b-cloud"
+max_description_chars = 3500
+
+[sources.tampere]
+enabled = true
+base_url = "https://tapahtumat.tampere.fi"
+collection_id = "634844c32f41a024ee51a234"
+window_days = 60
+# These are the calendar's own area identifiers. Add municipalities here and above.
+[sources.tampere.areas]
+Tampere = "area-28"
+Nokia = "area-15"
+"Ylöjärvi" = "area-27"
+Pirkkala = "area-19"
+Kangasala = "area-11"
+"Lempäälä" = "area-13"
+
+[sources.syo]
+enabled = true
+base_url = "https://syoviikot.fi"
+campaign_type_id = 1
+
+[category_mapping]
+music = ["music", "gig", "consert", "conserts and gigs", "concerts and gigs"]
+exhibitions = ["exhibitions", "museums", "museums and galleries", "visual arts", "art"]
+festivals = ["festivals", "fairs"]
+food = ["food and beverage"]
+culture = ["culture", "theatre", "movies", "literature", "comedy", "circus", "dance"]
