@@ -1,195 +1,137 @@
 # Häppeninki
 
-Tampere-area events posted daily to separate Russian and English Telegram channels.
-Runs on Python 3.12 using only the standard library: no server, database service,
-or dependency installation is required.
+Find something worth going out for in Tampere.
 
-## Behavior
+Häppeninki discovers local events and shares short Russian and English summaries
+on Telegram, making it easier to explore the city's cultural life without having
+to follow several Finnish event calendars.
 
-- Scans at **09:00 Europe/Helsinki**, including daylight-saving changes.
-- Covers Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä.
-- Includes music, exhibitions, festivals, food campaigns and cultural events.
-- Publishes a separate post for each listing in each configured channel. Russian and
-  English channels are independently optional; publication requires at least one.
-- First launch queues events overlapping **today through the same date next month**,
-  including exhibitions already open. It records later listings as a silent baseline.
-- Later scans announce newly discovered listings up to the configured discovery horizon
-  (365 days by default). Existing baseline listings beyond the initial month stay silent.
-- Groups multiple performance dates under one listing. Separate venues/listings can have
-  separate posts. Category tags and title exclusions remove routine classes; editorial
-  relevance is rule-based, so some borderline listings may need extra exclusion patterns.
-- Updates previously published messages when source content changes, including an explicit
-  cancellation. Missing listings are not assumed cancelled.
-- Tracks Russian and English sends independently and caches translations. A failure in
-  one language does not repeat the successful post in the other.
-- Limits each run to 100 queued events and an 18-minute soft processing budget. A large
-  first-launch backlog or exhausted Ollama allowance resumes on later/manual runs.
+It covers **Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä**, with a focus
+on concerts, exhibitions, festivals, food campaigns and other cultural events.
+The area and categories can be extended as the project grows.
 
-## Sources
+## How it works
 
-1. **Tampere event calendar**: the public JSON collection interface used by
-   [tapahtumat.tampere.fi](https://tapahtumat.tampere.fi). Verified with live data on
-   5 October 2026. Municipalities are selected using the calendar's area IDs. This
-   frontend interface is not a versioned third-party API and may change.
-2. **SYÖ!-viikot**: the website's public current/next campaign endpoint. A published
-   campaign generates one post per configured participating municipality, linking to
-   the current restaurants/offers rather than copying every offer. The endpoint returned
-   `null` during verification; positive campaign parsing is covered by a synthetic test
-   and should be checked when the next campaign appears.
+Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
+new listings, translates them and publishes a separate post for each event.
+Each post includes a short description, dates, location, price when available,
+and a link to the original listing.
 
-Each post links to its source. Coverage depends on what organizers publish; this does
-not crawl every venue or social network. No images are reposted. The public frontend
-endpoints were verified, but their long-term access/reuse guarantees are not established.
+Russian and English channels are independently optional: run either one or both.
+The bot remembers what it has posted in each channel and can update existing
+messages when an event changes or the source reports a cancellation.
 
-## Local preview
+On the first launch, it queues events happening within the **next month**, including
+exhibitions already open. After that, it looks for newly discovered events up to
+a year ahead. Large backlogs are published in batches, so the first launch may
+need several runs.
+
+Events come from the [Tampere event calendar](https://tapahtumat.tampere.fi) and
+[SYÖ!-viikot](https://syoviikot.fi). Coverage depends on what organizers list there.
+The SYÖ! connection is included, but still needs verification with a published
+campaign when the next one becomes available.
+
+## A small bot without a server
+
+```text
+Event sources → Collection and filtering → Ollama translation → Telegram
+                         ↕
+                   Saved event history
+```
+
+GitHub Actions runs the bot on a schedule. Ollama Cloud translates the event
+text, and a small database saved in a GitHub release keeps track of events and
+published messages between runs.
+
+There is no always-running server or separate database service to host. Modest
+usage can fit within GitHub and Ollama's free allowances, though translation
+capacity depends on the model and your account. If the allowance runs out,
+unpublished events stay queued for a later run.
+
+## Set up your own
+
+You will need:
+
+- A GitHub repository containing this project, with Actions enabled.
+- A Telegram bot created through [@BotFather](https://t.me/BotFather).
+- One or two Telegram channels, with the bot added as an administrator allowed
+  to post and edit its messages.
+- An Ollama Cloud account, API key and an accessible model.
+
+### 1. Add your settings
+
+In your repository, open **Settings → Secrets and variables → Actions** and add:
+
+| Secret | What to enter |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | The token from BotFather |
+| `TELEGRAM_CHANNEL_RU` | Russian channel ID or `@username`, if used |
+| `TELEGRAM_CHANNEL_EN` | English channel ID or `@username`, if used |
+| `OLLAMA_API_KEY` | Your Ollama Cloud API key |
+
+Set at least one channel. Leave the other secret empty or omit it to disable
+that language. Numeric channel IDs are preferable because they stay the same
+when a channel's username changes. Keep tokens in secrets, never in source files.
+
+The default model is `gemma4:31b-cloud`. To choose another, add an Actions
+**variable** named `OLLAMA_MODEL` with a model available to your account.
+
+### 2. Preview the posts
+
+Open **Actions → Publish Tampere events → Run workflow**.
+Choose `mode=preview` and enable `translate_preview` to inspect up to ten
+translated event posts. Download the run's output artifact and open
+`preview.json` to see the results.
+
+Preview sends nothing to Telegram and leaves saved history unchanged.
+Translated previews use your Ollama allowance.
+
+### 3. Start publishing
+
+Run the workflow again with `mode=publish` and `initialize=true` for the first
+launch. After that, leave `initialize` off. Daily runs will publish automatically;
+you can also run the workflow manually to continue a backlog.
+
+Each run handles up to 100 events, subject to its time budget and available
+translation allowance. Check the Actions results to see whether a run succeeded.
+
+### Reset or include more upcoming events
+
+The manual workflow also offers:
+
+| Option | What it does |
+| --- | --- |
+| `reset_state` | Clears history and repeats the first-month launch. Existing Telegram posts remain, so events can be posted again. |
+| `requeue_upcoming` | Queues currently listed upcoming events up to a year ahead, including those skipped by the initial month window. Preserves successful posts. |
+
+Enable both to start fresh and queue all collected upcoming events within that
+year. Use `mode=preview` to inspect the effect first. On subsequent runs, leave
+both options off so the bot resumes its queue instead of resetting it again.
+
+## Make it yours
+
+[config.toml](config.toml) controls the municipalities, event categories, filters,
+model and publishing limits. The daily posting time is set in the
+[publishing workflow](.github/workflows/publish.yml).
+
+To explore the sources locally, install Python 3.12 and run:
 
 ```sh
 python3 -m happeninki --mode preview
 ```
 
-The result is `data/preview.json`: source details, queue counts and pending languages.
-Preview writes no persistent event history and sends nothing to Telegram. If a local
-database exists, preview uses a temporary copy. Without channel settings, preview treats
-both languages as unpublished; with either channel configured it previews only configured
-languages. Use the real settings to preview the actual queue.
+This saves a preview to `data/preview.json` and needs no Telegram or Ollama
+credentials. For local translation or publishing, supply the settings listed in
+[.env.example](.env.example) through your environment; `.env` files are not loaded
+automatically. Python package installation is not required.
 
-To preview ten translated posts, provide `OLLAMA_API_KEY` in the environment:
+## Things to keep in mind
 
-```sh
-python3 -m happeninki --mode preview --translate --limit 10
-```
+The project is still young. Source interfaces can change, category filters may
+need tuning, and automated translations can make mistakes. Original listings
+remain the place to check details before attending an event.
 
-`.env.example` documents settings; `.env` is **not automatically loaded**. Export values
-in your shell or use your preferred environment loader. Do not paste tokens into code.
-
-## GitHub setup
-
-1. Push the project to the repository's default branch.
-2. Create a bot through Telegram's **@BotFather**, create one or two channels, and add the bot
-   as an administrator with permission to post/edit its own messages.
-3. In **Settings → Secrets and variables → Actions**, add these repository secrets:
-
-   | Secret | Value |
-   | --- | --- |
-   | `TELEGRAM_BOT_TOKEN` | BotFather token |
-   | `TELEGRAM_CHANNEL_RU` | Optional Russian channel `@username` or numeric channel ID |
-   | `TELEGRAM_CHANNEL_EN` | Optional English channel `@username` or numeric channel ID |
-   | `OLLAMA_API_KEY` | Ollama Cloud API key |
-
-   Set at least one channel secret; omit or leave the other empty to disable that
-   language. Disabled languages consume no translation allowance. Adding the other
-   channel later publishes its still-upcoming queued events using independent history.
-   Prefer numeric channel IDs so a username change does not reset channel identity.
-   Optionally set the repository variable `OLLAMA_MODEL` to a model your account can
-   access. The default is `gemma4:31b-cloud`; verify access with a translated preview.
-4. Run **Publish Tampere events** manually with `mode=preview`. Enable translated
-   preview to inspect configured languages (this consumes your Ollama allowance).
-5. Run manually with `mode=publish` and **initialize=true** for the first launch.
-   Use a test bot/channels first if you want to inspect actual Telegram rendering.
-6. Subsequent manual runs use **initialize=false**. Scheduled runs publish automatically.
-
-GitHub provides the repository token for release storage automatically; no personal
-access token is needed in Actions. Before initialization, scheduled runs refuse to
-create empty history. This prevents accidental reset/reposting if the release is lost.
-
-## Release-based state
-
-### Reset and requeue
-
-The manual **Run workflow** form has two optional checkboxes, both off by default:
-
-- **reset_state** clears event history, translations and publication receipts, then
-  repeats the first launch for the next month. Existing Telegram messages are not
-  deleted, so events can be posted again. An existing release must still restore
-  successfully; a missing release can be initialized by this explicit reset option.
-- **requeue_upcoming** queues all currently collected upcoming events within
-  `discovery_days` (365 days by default), including listings previously saved as a
-  silent baseline. It preserves translations and successful posts in each channel.
-  Unchanged published events are skipped; changed events follow the normal edit path.
-
-Choose `mode=preview` with either checkbox to simulate the result without changing
-saved state or sending messages. Choose `mode=publish` to apply it and process the queue.
-Both can be enabled together to reset history and post all collected upcoming events
-instead of limiting the new baseline to one month. Run limits and Ollama quotas still
-apply; later runs resume the backlog with both checkboxes **off**.
-
-Reset/requeue is applied only after every enabled source has been collected successfully.
-The updated state is checkpointed before any posts are sent. It uses a new release
-snapshot rather than deleting the release or its current snapshot.
-
-The `events-db` GitHub release stores **immutable, timestamped SQLite snapshots**.
-New uploads do not remove the preceding snapshot. The bot restores the newest snapshot
-and checks its integrity and GitHub digest when available. A failed download stops the
-run instead of falling back to empty or older history. After a successful run, the three
-newest snapshots remain.
-
-State is checkpointed before publication and after every successful send/edit. If an
-upload fails, further sends stop. A seven-day Actions recovery artifact also preserves
-the runner's database and preview, including on a failed run; it is supplementary
-recovery storage, not the source of truth.
-
-SQLite contains normalized public event descriptions, aliases, translations and
-publication history. Credentials and raw source contact metadata are excluded. Channel
-identifiers are hashed. Release snapshots will be publicly downloadable if the repository
-becomes public. Keep credentials in GitHub secrets.
-
-Telegram sending and GitHub persistence cannot form one atomic transaction. A crash or
-ambiguous timeout after Telegram accepts a send but before state is saved can cause a
-duplicate on the next run. Do not blindly rerun after an upload failure: recover the
-runner's database first if it includes posts missing from the latest release.
-
-### Recovery
-
-For a failed upload, download `run-output-<run-id>` from that Actions run and retain its
-`events.db`. Validate it before uploading as a new snapshot:
-
-```sh
-python3 -c 'from happeninki.store import validate_database; validate_database("data/events.db")'
-```
-
-With `GITHUB_TOKEN` (a token scoped to this repository with contents write access) and
-`GITHUB_REPOSITORY` exported:
-
-```sh
-python3 -m happeninki.recover --database data/events.db
-```
-
-This only uploads the validated database; it does not send Telegram messages. Use the
-most recent runner database that includes all successfully sent posts. Restoring an
-older snapshot may repeat newer posts. Never delete the state release to clear errors.
-
-## Configuration and extension
-
-Edit `config.toml` to adjust municipalities, categories, title exclusions, discovery
-horizon, Ollama model and processing limits. Adding a municipality requires its calendar
-area ID in `[sources.tampere.areas]` as well as its name in `municipalities`. Change
-posting time in `.github/workflows/publish.yml`.
-
-Add source adapters in `happeninki/sources.py`. Each returns normalized `Event` objects
-with stable source IDs. Exact normalized title + municipality + address + date range
-deduplicates across sources; ambiguous near matches remain separate to avoid suppressing
-different concerts. The original source ID remains the update identity when dates change.
-
-## Cost and operational limits
-
-Daily runs should fit GitHub's private-repository free allowance at modest volume;
-minutes are shared with your other repositories/workflows. Ollama usage depends on your
-account/model allowance and is not unlimited. On access/quota failure, events remain
-queued and the workflow fails visibly. No paid service fallback is enabled.
-
-When the repository becomes public, GitHub can disable scheduled workflows after 60
-days without repository activity. Do not assume snapshot uploads keep scheduling enabled.
-Check Actions periodically or use an external scheduler if needed. Scheduled runs can
-also be delayed; 09:00 is the requested start time, not a delivery guarantee.
-
-## Verification
-
-```sh
-python3 -m unittest discover -s tests -v
-```
-
-Tests cover real calendar schemas, date-window merging, first-launch selection,
-cross-source duplicates, language-specific retries, translation caching, cancellation,
-rolling-date changes, failed checkpoints and restore errors. Tests never contact live
-services. Live source checks use preview mode; live Ollama and Telegram checks require
-your account credentials.
+GitHub's scheduler can delay runs. Public repositories may also have schedules
+disabled after 60 days without activity, so check Actions periodically. If a run
+reports a database upload failure, keep its recovery artifact before retrying:
+it may contain publication history needed to avoid duplicate posts.
