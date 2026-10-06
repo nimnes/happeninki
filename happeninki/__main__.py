@@ -23,8 +23,9 @@ LOG = logging.getLogger("happeninki")
 
 
 def publish_pending(store, config, translator, telegram, today, checkpoint, deadline, now=None):
-    hashes = {language: channel_hash(telegram.channels[language]) for language in config["languages"]}
-    pending = store.pending(today, config["languages"], hashes, now=now)
+    enabled_languages = [language for language in config["languages"] if telegram.channels.get(language)]
+    hashes = {language: channel_hash(telegram.channels[language]) for language in enabled_languages}
+    pending = store.pending(today, enabled_languages, hashes, now=now)
     LOG.info("%d events queued for publication or update", len(pending))
     sent, failures = 0, 0
     for event_id, event, languages in pending[:config["max_events_per_run"]]:
@@ -69,7 +70,7 @@ def run(args):
     http = HttpClient()
     today = datetime.now(ZoneInfo(config["timezone"])).date()
     deadline = time.monotonic() + config["run_budget_seconds"]
-    channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "") for language in config["languages"]}
+    channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "").strip() for language in config["languages"]}
     remote = ReleaseState(http, os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
     translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if args.mode == "publish" or args.translate else None
     telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels) if args.mode == "publish" else None
@@ -100,8 +101,10 @@ def run(args):
                 raise RuntimeError("First-launch collection incomplete; no baseline or posts created. Retry after fixing the source failures.")
             store.ingest(events, today, initial_end)
             if args.mode == "preview":
-                hashes = {language: channel_hash(channels[language] or f"preview-{language}") for language in config["languages"]}
-                pending = store.pending(today, config["languages"], hashes,
+                # Without channels, preview still works for both languages offline.
+                preview_languages = [language for language in config["languages"] if channels[language]] or config["languages"]
+                hashes = {language: channel_hash(channels[language] or f"preview-{language}") for language in preview_languages}
+                pending = store.pending(today, preview_languages, hashes,
                                         now=datetime.now(ZoneInfo(config["timezone"])))
                 output = []
                 for _, event, languages in pending[:args.limit]:

@@ -58,9 +58,13 @@ def build_message(event, translation, language, today):
 
 class Telegram:
     def __init__(self, http, token, channels):
-        if not token or any(not channels.get(language) for language in ("ru", "en")):
-            raise ValueError("Set TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_RU and TELEGRAM_CHANNEL_EN")
-        if channels["ru"] == channels["en"]:
+        channels = {language: channel.strip() for language, channel in channels.items()
+                    if language in {"ru", "en"} and channel and channel.strip()}
+        if not token:
+            raise ValueError("Set TELEGRAM_BOT_TOKEN")
+        if not channels:
+            raise ValueError("Set at least one of TELEGRAM_CHANNEL_RU or TELEGRAM_CHANNEL_EN")
+        if len(channels) == 2 and channels["ru"] == channels["en"]:
             raise ValueError("Russian and English must use different Telegram channels")
         self.http, self.token, self.channels = http, token, channels
 

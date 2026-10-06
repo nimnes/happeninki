@@ -229,6 +229,30 @@ class PipelineTests(unittest.TestCase):
             TODAY, lambda _: None, time.monotonic() + 10), (0, 1))
         self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["ru", "en"])
 
+    def test_only_configured_language_is_translated_and_sent(self):
+        for language in ("ru", "en"):
+            with self.subTest(language=language):
+                item = event(source_id=language, title=f"Concert {language}")
+                self.ingest([item])
+                calls = []
+                class Sender:
+                    channels = {language: language}
+                    def publish(self, lang, message, message_id=None):
+                        calls.append(("send", lang))
+                        return 111
+                class Editor:
+                    def translate(self, item, lang):
+                        calls.append(("translate", lang))
+                        return {"title": "Title", "summary": "Summary"}
+                publish_pending(self.store, self.config, Editor(), Sender(), TODAY,
+                                lambda _: None, time.monotonic() + 10)
+                self.assertTrue(calls)
+                self.assertTrue(all(lang == language for _, lang in calls))
+                other = "en" if language == "ru" else "ru"
+                row = next(row for row in self.store.pending(TODAY, [other], HASHES)
+                           if row[1].source_id == language)
+                self.assertEqual(row[2], [other])
+
 
 class ReleaseTests(unittest.TestCase):
     def test_immutable_snapshots_restore_latest_language_receipt(self):
@@ -329,6 +353,14 @@ class FormattingTests(unittest.TestCase):
                 raise RemoteError("Telegram", 400, description="Bad Request: message is not modified: text unchanged")
         telegram = Telegram(Http(), "fake", {"ru": "ru", "en": "en"})
         self.assertEqual(telegram.publish("ru", "Same message", 42), 42)
+
+    def test_optional_channels(self):
+        for language in ("ru", "en"):
+            telegram = Telegram(None, "fake", {language: " @channel ",
+                                "en" if language == "ru" else "ru": " "})
+            self.assertEqual(telegram.channels, {language: "@channel"})
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            Telegram(None, "fake", {"ru": "", "en": ""})
 
 
 if __name__ == "__main__":

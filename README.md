@@ -9,7 +9,8 @@ or dependency installation is required.
 - Scans at **09:00 Europe/Helsinki**, including daylight-saving changes.
 - Covers Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä.
 - Includes music, exhibitions, festivals, food campaigns and cultural events.
-- Publishes a separate post for each listing in each language.
+- Publishes a separate post for each listing in each configured channel. Russian and
+  English channels are independently optional; publication requires at least one.
 - First launch queues events overlapping **today through the same date next month**,
   including exhibitions already open. It records later listings as a silent baseline.
 - Later scans announce newly discovered listings up to the configured discovery horizon
@@ -49,7 +50,8 @@ python3 -m happeninki --mode preview
 The result is `data/preview.json`: source details, queue counts and pending languages.
 Preview writes no persistent event history and sends nothing to Telegram. If a local
 database exists, preview uses a temporary copy. Without channel settings, preview treats
-both languages as unpublished; use the real settings to preview the actual queue.
+both languages as unpublished; with either channel configured it previews only configured
+languages. Use the real settings to preview the actual queue.
 
 To preview ten translated posts, provide `OLLAMA_API_KEY` in the environment:
 
@@ -63,22 +65,25 @@ in your shell or use your preferred environment loader. Do not paste tokens into
 ## GitHub setup
 
 1. Push the project to the repository's default branch.
-2. Create a bot through Telegram's **@BotFather**, create two channels, and add the bot
+2. Create a bot through Telegram's **@BotFather**, create one or two channels, and add the bot
    as an administrator with permission to post/edit its own messages.
 3. In **Settings → Secrets and variables → Actions**, add these repository secrets:
 
    | Secret | Value |
    | --- | --- |
    | `TELEGRAM_BOT_TOKEN` | BotFather token |
-   | `TELEGRAM_CHANNEL_RU` | Russian channel `@username` or numeric channel ID |
-   | `TELEGRAM_CHANNEL_EN` | English channel `@username` or numeric channel ID |
+   | `TELEGRAM_CHANNEL_RU` | Optional Russian channel `@username` or numeric channel ID |
+   | `TELEGRAM_CHANNEL_EN` | Optional English channel `@username` or numeric channel ID |
    | `OLLAMA_API_KEY` | Ollama Cloud API key |
 
+   Set at least one channel secret; omit or leave the other empty to disable that
+   language. Disabled languages consume no translation allowance. Adding the other
+   channel later publishes its still-upcoming queued events using independent history.
    Prefer numeric channel IDs so a username change does not reset channel identity.
    Optionally set the repository variable `OLLAMA_MODEL` to a model your account can
    access. The default is `gemma4:31b-cloud`; verify access with a translated preview.
 4. Run **Publish Tampere events** manually with `mode=preview`. Enable translated
-   preview to inspect both languages (this consumes your Ollama allowance).
+   preview to inspect configured languages (this consumes your Ollama allowance).
 5. Run manually with `mode=publish` and **initialize=true** for the first launch.
    Use a test bot/channels first if you want to inspect actual Telegram rendering.
 6. Subsequent manual runs use **initialize=false**. Scheduled runs publish automatically.
