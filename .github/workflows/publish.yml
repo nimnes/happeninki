@@ -19,6 +19,14 @@ on:
         description: "Use Ollama to translate the first 10 preview events"
         type: boolean
         default: false
+      reset_state:
+        description: "Clear history and repeat first launch (may duplicate posts)"
+        type: boolean
+        default: false
+      requeue_upcoming:
+        description: "Queue all upcoming events, preserving successful posts"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -51,10 +59,14 @@ jobs:
           REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
           INITIALIZE: ${{ inputs.initialize || false }}
           TRANSLATE_PREVIEW: ${{ inputs.translate_preview || false }}
+          RESET_STATE: ${{ inputs.reset_state || false }}
+          REQUEUE_UPCOMING: ${{ inputs.requeue_upcoming || false }}
         run: |
           args=(--mode "$REQUESTED_MODE" --release-state)
           if [ "$INITIALIZE" = "true" ]; then args+=(--initialize); fi
           if [ "$TRANSLATE_PREVIEW" = "true" ]; then args+=(--translate); fi
+          if [ "$RESET_STATE" = "true" ]; then args+=(--reset-state); fi
+          if [ "$REQUEUE_UPCOMING" = "true" ]; then args+=(--requeue-upcoming); fi
           python -m happeninki "${args[@]}"
       - name: Save preview or emergency recovery database
         if: always()

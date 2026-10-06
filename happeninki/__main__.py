@@ -85,21 +85,27 @@ def run(args):
                 validate_database(args.database)
                 shutil.copy2(args.database, db_path)
         elif remote:
-            remote.restore(db_path, initialize=args.initialize)
-        elif not db_path.exists() and not args.initialize:
+            remote.restore(db_path, initialize=args.initialize or args.reset_state)
+        elif not db_path.exists() and not (args.initialize or args.reset_state):
             raise RuntimeError("Local state is missing; use --initialize only for the first launch")
         elif db_path.exists():
             validate_database(db_path)
         store = Store(db_path)
         try:
-            first_launch = store.get_meta("initialized") is None
+            first_launch = args.reset_state or store.get_meta("initialized") is None
             initial_end = next_month(today)
             scan_end = today + timedelta(days=config["discovery_days"])
             LOG.info("Scanning %s to %s%s", today, scan_end, " (first-launch posts limited to one month)" if first_launch else "")
             events, source_failures = collect(config, http, today, scan_end)
-            if source_failures and first_launch:
-                raise RuntimeError("First-launch collection incomplete; no baseline or posts created. Retry after fixing the source failures.")
+            if source_failures and (first_launch or args.requeue_upcoming):
+                raise RuntimeError("Collection incomplete; reset/requeue/initialization not applied and no posts sent. Retry after fixing the source failures.")
+            if args.reset_state:
+                LOG.warning("Resetting event history; previously published events may be posted again")
+                store.reset()
             store.ingest(events, today, initial_end)
+            if args.requeue_upcoming:
+                promoted = store.requeue_upcoming(events, today, scan_end)
+                LOG.info("Requeued %d baseline listings; successful publication receipts preserved", promoted)
             if args.mode == "preview":
                 # Without channels, preview still works for both languages offline.
                 preview_languages = [language for language in config["languages"] if channels[language]] or config["languages"]
@@ -120,6 +126,7 @@ def run(args):
                 destination.write_text(json.dumps({"first_launch": first_launch, "scan_start": today.isoformat(),
                     "scan_end": scan_end.isoformat(), "initial_window_end": initial_end.isoformat(),
                     "matching_listings": len(events), "pending_events": len(pending),
+                    "reset_state": args.reset_state, "requeue_upcoming": args.requeue_upcoming,
                     "source_failures": source_failures, "events": output}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 LOG.info("Preview saved: %s (%d of %d pending events)", destination, len(output), len(pending))
                 return int(bool(source_failures))
@@ -142,6 +149,8 @@ def main():
     parser.add_argument("--database", default="data/events.db")
     parser.add_argument("--release-state", action="store_true", help="Restore/checkpoint state using GitHub Releases")
     parser.add_argument("--initialize", action="store_true", help="Explicitly allow first-launch state creation")
+    parser.add_argument("--reset-state", action="store_true", help="Clear history and repeat first launch; may duplicate posts. Preview only simulates this.")
+    parser.add_argument("--requeue-upcoming", action="store_true", help="Queue all collected upcoming events within the discovery horizon, preserving successful posts")
     parser.add_argument("--translate", action="store_true", help="Translate preview entries without publishing")
     parser.add_argument("--limit", type=int, default=10, help="Maximum preview entries")
     parser.add_argument("--output", default="data/preview.json")

@@ -48,6 +48,27 @@ class Store:
         with self.connection:
             self.connection.execute("INSERT OR REPLACE INTO metadata VALUES(?,?)", (key, str(value)))
 
+    def reset(self):
+        """Clear history locally; the caller checkpoints only after a complete scan."""
+        with self.connection:
+            for table in ("publications", "translations", "aliases", "events"):
+                self.connection.execute(f"DELETE FROM {table}")
+            self.connection.execute("DELETE FROM metadata WHERE key != 'schema_version'")
+
+    def requeue_upcoming(self, events, today, end):
+        """Promote current listings without deleting translation or send receipts."""
+        promoted = 0
+        with self.connection:
+            for event in events:
+                if event.cancelled or not event.overlaps(today, end):
+                    continue
+                alias = self.connection.execute("SELECT event_id FROM aliases WHERE source_key=?",
+                                                (event.source_key,)).fetchone()
+                if alias:
+                    promoted += self.connection.execute(
+                        "UPDATE events SET eligible=1 WHERE id=? AND eligible=0", (alias[0],)).rowcount
+        return promoted
+
     def ingest(self, events, today, initial_end):
         first_launch = self.get_meta("initialized") is None
         with self.connection:

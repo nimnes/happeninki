@@ -94,6 +94,29 @@ create empty history. This prevents accidental reset/reposting if the release is
 
 ## Release-based state
 
+### Reset and requeue
+
+The manual **Run workflow** form has two optional checkboxes, both off by default:
+
+- **reset_state** clears event history, translations and publication receipts, then
+  repeats the first launch for the next month. Existing Telegram messages are not
+  deleted, so events can be posted again. An existing release must still restore
+  successfully; a missing release can be initialized by this explicit reset option.
+- **requeue_upcoming** queues all currently collected upcoming events within
+  `discovery_days` (365 days by default), including listings previously saved as a
+  silent baseline. It preserves translations and successful posts in each channel.
+  Unchanged published events are skipped; changed events follow the normal edit path.
+
+Choose `mode=preview` with either checkbox to simulate the result without changing
+saved state or sending messages. Choose `mode=publish` to apply it and process the queue.
+Both can be enabled together to reset history and post all collected upcoming events
+instead of limiting the new baseline to one month. Run limits and Ollama quotas still
+apply; later runs resume the backlog with both checkboxes **off**.
+
+Reset/requeue is applied only after every enabled source has been collected successfully.
+The updated state is checkpointed before any posts are sent. It uses a new release
+snapshot rather than deleting the release or its current snapshot.
+
 The `events-db` GitHub release stores **immutable, timestamped SQLite snapshots**.
 New uploads do not remove the preceding snapshot. The bot restores the newest snapshot
 and checks its integrity and GitHub digest when available. A failed download stops the

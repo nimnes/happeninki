@@ -7,9 +7,10 @@ import unittest
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from happeninki.__main__ import publish_pending
+from happeninki.__main__ import publish_pending, run
 from happeninki.config import load_config
 from happeninki.http import RemoteError
 from happeninki.models import Event, next_month
@@ -174,6 +175,66 @@ class StateTests(unittest.TestCase):
         snapshot.write_bytes(b"bad data")
         with self.assertRaises(Exception):
             validate_database(snapshot)
+
+    def test_reset_clears_receipts_cache_and_baseline(self):
+        item = event()
+        self.ingest([item])
+        key = self.store.pending(TODAY, ["ru"], HASHES)[0][0]
+        self.store.mark_published(key, "ru", HASHES["ru"], 123, item.fingerprint)
+        self.store.cache_translation(item, "ru", {"title": "Title", "summary": "Summary"})
+        self.store.reset()
+        self.assertIsNone(self.store.get_meta("initialized"))
+        self.assertIsNone(self.store.translation(item, "ru"))
+        self.assertIsNone(self.store.publication(key, "ru", HASHES["ru"]))
+        self.ingest([item])
+        self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["ru", "en"])
+
+    def test_requeue_promotes_baseline_without_repeating_successful_posts(self):
+        near = event()
+        far = event(source_id="2", start="2026-12-01", end="2026-12-02")
+        self.ingest([near, far])
+        key = self.store.pending(TODAY, ["ru", "en"], HASHES)[0][0]
+        self.store.mark_published(key, "ru", HASHES["ru"], 123, near.fingerprint)
+        self.assertEqual(self.store.requeue_upcoming([near, far], TODAY, date(2027, 10, 5)), 1)
+        queued = {row[1].source_id: row[2] for row in self.store.pending(TODAY, ["ru", "en"], HASHES)}
+        self.assertEqual(queued, {"1": ["en"], "2": ["ru", "en"]})
+        self.assertEqual(self.store.requeue_upcoming([near, far], TODAY, date(2027, 10, 5)), 0)
+        self.assertEqual(self.store.publication(key, "ru", HASHES["ru"])["message_id"], 123)
+
+    @patch("happeninki.__main__.datetime")
+    @patch("happeninki.__main__.collect")
+    def test_reset_requeue_preview_does_not_change_saved_state(self, collect_mock, datetime_mock):
+        near = event()
+        far = event(source_id="2", start="2026-12-01", end="2026-12-02")
+        self.ingest([near, far])
+        key = self.store.pending(TODAY, ["ru"], HASHES)[0][0]
+        self.store.mark_published(key, "ru", HASHES["ru"], 123, near.fingerprint)
+        collect_mock.return_value = ([near, far], [])
+        datetime_mock.now.return_value = datetime.fromisoformat("2026-10-05T09:00:00+03:00")
+        output = Path(self.directory.name) / "preview.json"
+        args = SimpleNamespace(config="config.toml", mode="preview", translate=False,
+            release_state=False, database=str(self.path), initialize=False,
+            reset_state=True, requeue_upcoming=True, limit=10, output=str(output))
+        with patch.dict("os.environ", {"TELEGRAM_CHANNEL_RU": "ru", "TELEGRAM_CHANNEL_EN": "en"}):
+            self.assertEqual(run(args), 0)
+        self.assertEqual(json.loads(output.read_text())["pending_events"], 2)
+        self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["en"])
+        self.assertEqual(len(self.store.pending(TODAY, ["ru", "en"], HASHES)), 1)
+
+    @patch("happeninki.__main__.collect", return_value=([], ["tampere"]))
+    def test_failed_collection_does_not_apply_reset(self, collect_mock):
+        item = event()
+        self.ingest([item])
+        key = self.store.pending(TODAY, ["ru"], HASHES)[0][0]
+        self.store.mark_published(key, "ru", HASHES["ru"], 123, item.fingerprint)
+        args = SimpleNamespace(config="config.toml", mode="publish", translate=False,
+            release_state=False, database=str(self.path), initialize=False,
+            reset_state=True, requeue_upcoming=False)
+        with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "fake", "TELEGRAM_CHANNEL_RU": "ru",
+                                       "TELEGRAM_CHANNEL_EN": "", "OLLAMA_API_KEY": "fake"}):
+            with self.assertRaisesRegex(RuntimeError, "Collection incomplete"):
+                run(args)
+        self.assertEqual(self.store.publication(key, "ru", HASHES["ru"])["message_id"], 123)
 
 
 class PipelineTests(unittest.TestCase):
