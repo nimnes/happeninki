@@ -10,6 +10,10 @@ It covers **Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä**, w
 on concerts, exhibitions, festivals, food campaigns and other cultural events.
 The area and categories can be extended as the project grows.
 
+By default, it skips children's activities, book clubs and reading sessions
+(including reading to dogs), general courses, workshops, bingo, pub quizzes and
+karaoke. Finnish-language learning is an exception to the course filter.
+
 ## How it works
 
 Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
@@ -113,6 +117,32 @@ both options off so the bot resumes its queue instead of resetting it again.
 [config.toml](config.toml) controls the municipalities, event categories, filters,
 model and publishing limits. The daily posting time is set in the
 [publishing workflow](.github/workflows/publish.yml).
+
+The `[filters]` section lets you choose what you want to see:
+
+```toml
+[filters]
+exclude_children = true
+exclude_reading = true
+exclude_courses = true
+allow_finnish_learning = true
+exclude_workshops = true
+exclude_games = true
+excluded_source_categories = []
+exclude_title_keywords = []
+```
+
+Set an exclusion to `false` to include that type again. For a stricter selection,
+add source category names such as `"dance"` to `excluded_source_categories`, or
+title phrases such as `"open mic"` to `exclude_title_keywords`. Reading exclusions
+also cover listings tagged as literature; library concerts and exhibitions can
+still be included. Clear Finnish-learning titles can be included even when they
+are listed outside the usual cultural categories.
+
+New preferences apply to previously queued events too, without resetting history.
+They do not delete messages already posted to Telegram. These are category and
+text rules rather than a personal recommendation engine, so preview the results
+and adjust them as you discover what you enjoy.
 
 To explore the sources locally, install Python 3.12 and run:
 

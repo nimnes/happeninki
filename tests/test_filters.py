@@ -1,0 +1,156 @@
+import json
+import tempfile
+import time
+import unittest
+from dataclasses import replace
+from datetime import date
+from pathlib import Path
+
+from happeninki.__main__ import publish_pending
+from happeninki.config import load_config
+from happeninki.filters import exclusion_reason
+from happeninki.models import Event, next_month
+from happeninki.sources import parse_tampere
+from happeninki.store import Store
+from happeninki.telegram import channel_hash
+
+
+TODAY = date(2026, 10, 7)
+HASHES = {language: channel_hash(language) for language in ("ru", "en")}
+
+
+def event(**kwargs):
+    values = dict(source="tampere", source_id="one", title="Concert", description="Music",
+                  url="https://example.org/event", municipality="Tampere", venue="Venue",
+                  address="Venue, Street 1", category="music", start="2026-10-20", end="2026-10-20", dates=[])
+    values.update(kwargs)
+    return Event(**values)
+
+
+class PreferenceTests(unittest.TestCase):
+    def setUp(self):
+        self.config = load_config()
+
+    def reason(self, title, description="", tags=()):
+        return exclusion_reason(title, description, tags, self.config)
+
+    def page(self, title, tags, description=""):
+        path = Path(__file__).parent / "fixtures/tampere-individual-dates.json"
+        page = json.loads(path.read_text())
+        page.update(name=title, globalContentCategories=tags, descriptionLong=description, descriptionShort=description)
+        return page
+
+    def test_child_tag_overrides_music_and_exhibition(self):
+        self.assertIsNotNone(self.reason("Concert", tags=["music", "kids and family"]))
+        self.assertIsNotNone(self.reason("Exhibition", tags=["exhibitions", "kids and family"]))
+        self.assertIsNotNone(self.reason("Lasten konsertti", tags=["music"]))
+        self.assertIsNotNone(self.reason("Craft afternoon", "Tapahtuma on suunnattu lapsille."))
+
+    def test_reading_activities_and_dogs(self):
+        for title in ("Lukupiiri", "Lukukoiralle lukeminen", "Lue koiralle", "Kirjakerho",
+                      "Reading to a dog", "Book club", "Satutuokio"):
+            with self.subTest(title=title):
+                self.assertIsNotNone(self.reason(title))
+        self.assertIsNotNone(self.reason("Author evening", tags=["literature"]))
+
+    def test_general_courses_workshops_and_games_excluded(self):
+        for title in ("Lasten tanssikurssit", "Valokuvauskurssi", "English language course",
+                      "Keramiikkatyöpaja", "Craft workshop", "Bingo", "Pub Quiz", "Karaoke"):
+            with self.subTest(title=title):
+                self.assertIsNotNone(self.reason(title))
+
+    def test_finnish_learning_included_without_culture_tag(self):
+        for title, description in (("Suomen kielen kurssi", ""), ("Finnish language course", ""),
+                ("Puhutaan suomea", ""), ("Kielikahvila", "Harjoitellaan suomea yhdessä.")):
+            with self.subTest(title=title):
+                parsed = parse_tampere(self.page(title, ["seminars and meetings"], description), "Tampere", self.config)
+                self.assertIsNotNone(parsed)
+                self.assertEqual(parsed.category, "language_learning")
+
+    def test_finnish_learning_exception_is_scoped(self):
+        self.assertIsNotNone(self.reason("Suomen kielen kurssi", tags=["kids and family"]))
+        self.assertIsNotNone(self.reason("Maalauskurssi", "Opetus on suomen kielellä."))
+        self.config["filters"]["allow_finnish_learning"] = False
+        self.assertIsNotNone(self.reason("Suomen kielen kurssi"))
+
+    def test_library_concert_and_exhibition_are_kept(self):
+        for title, tags in (("Konsertti kirjastossa", ["music"]), ("Valokuvanäyttely", ["exhibitions"])):
+            self.assertIsNone(self.reason(title, "Lapset alle 7 vuotta pääsevät ilmaiseksi.", tags))
+            self.assertIsNotNone(parse_tampere(self.page(title, tags), "Tampere", self.config))
+
+    def test_filters_can_be_disabled_and_customized(self):
+        self.config["filters"]["exclude_games"] = False
+        self.assertIsNone(self.reason("Bingo"))
+        self.config["filters"]["exclude_reading"] = False
+        self.assertIsNone(self.reason("Book club", tags=["literature"]))
+        self.config["filters"]["exclude_title_keywords"] = ["open mic"]
+        self.assertIsNotNone(self.reason("Friday OPEN MIC"))
+        self.config["filters"]["excluded_source_categories"] = ["dance"]
+        self.assertIsNotNone(self.reason("Evening performance", tags=["dance"]))
+
+    def test_category_metadata_does_not_change_publication_fingerprint(self):
+        item = event()
+        self.assertEqual(item.fingerprint, replace(item, source_categories=["music"]).fingerprint)
+
+    def test_invalid_preferences_rejected(self):
+        content = Path("config.toml").read_text().replace("exclude_children = true", 'exclude_children = "yes"')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(content)
+            with self.assertRaisesRegex(ValueError, "filters.exclude_children"):
+                load_config(path)
+
+
+class QueuePreferenceTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.directory.name) / "events.db")
+        self.config = load_config()
+
+    def tearDown(self):
+        self.store.close()
+        self.directory.cleanup()
+
+    def test_old_queued_child_event_suppressed_and_receipt_preserved(self):
+        concert = event()
+        child = event(source_id="child", title="Ambiguous title")
+        self.store.ingest([concert, child], TODAY, next_month(TODAY))
+        child_id = next(row[0] for row in self.store.pending(TODAY, ["ru"], HASHES) if row[1].source_id == "child")
+        self.store.mark_published(child_id, "ru", HASHES["ru"], 99, child.fingerprint)
+        self.store.reconcile_selection("tampere", [concert], TODAY, next_month(TODAY))
+        self.assertEqual([row[1].source_id for row in self.store.pending(TODAY, ["ru", "en"], HASHES)], ["one"])
+        self.assertEqual(self.store.publication(child_id, "ru", HASHES["ru"])["message_id"], 99)
+        self.store.reconcile_selection("tampere", [concert, child], TODAY, next_month(TODAY))
+        restored = next(row for row in self.store.pending(TODAY, ["ru", "en"], HASHES) if row[1].source_id == "child")
+        self.assertEqual(restored[2], ["en"])
+
+    def test_legacy_payload_without_tags_still_loads(self):
+        item = event(title="Bingo")
+        self.store.ingest([item], TODAY, next_month(TODAY))
+        row = self.store.connection.execute("SELECT id, payload FROM events").fetchone()
+        payload = json.loads(row["payload"])
+        payload.pop("source_categories")
+        with self.store.connection:
+            self.store.connection.execute("UPDATE events SET payload=? WHERE id=?", (json.dumps(payload), row["id"]))
+        self.assertEqual(self.store.pending(TODAY, ["ru"], HASHES)[0][1].source_categories, [])
+        class NeverTranslate:
+            def translate(self, event, language):
+                raise AssertionError("Excluded event must not consume translation allowance")
+        class NeverSend:
+            channels = {"ru": "ru"}
+            def publish(self, *args):
+                raise AssertionError("Excluded event must not be sent")
+        self.assertEqual(publish_pending(self.store, self.config, NeverTranslate(), NeverSend(),
+                         TODAY, lambda _: None, time.monotonic() + 10), (0, 0))
+
+    def test_failed_source_cannot_publish_old_unfiltered_queue(self):
+        self.store.ingest([event()], TODAY, next_month(TODAY))
+        class Sender:
+            channels = {"ru": "ru"}
+        self.assertEqual(publish_pending(self.store, self.config, None, Sender(), TODAY,
+                         lambda _: None, time.monotonic() + 10, blocked_sources={"tampere"}), (0, 0))
+        self.assertEqual(len(self.store.pending(TODAY, ["ru"], HASHES)), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

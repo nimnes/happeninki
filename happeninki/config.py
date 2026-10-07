@@ -18,6 +18,15 @@ def load_config(path="config.toml"):
             raise ValueError(f"Unknown category: {name}")
     for pattern in config["exclude_title_patterns"]:
         re.compile(pattern)
+    filters = config.get("filters", {})
+    for key in ("exclude_children", "exclude_reading", "exclude_courses", "allow_finnish_learning",
+                "exclude_workshops", "exclude_games"):
+        if key in filters and not isinstance(filters[key], bool):
+            raise ValueError(f"filters.{key} must be true or false")
+    for key in ("excluded_source_categories", "exclude_title_keywords"):
+        values = filters.get(key, [])
+        if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
+            raise ValueError(f"filters.{key} must be a list of nonempty strings")
     for key in ("discovery_days", "max_events_per_run", "run_budget_seconds"):
         if config[key] <= 0:
             raise ValueError(f"{key} must be positive.")

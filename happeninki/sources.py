@@ -5,12 +5,17 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from .models import Event, parse_datetime, plain_text, safe_url
+from .filters import exclusion_reason, is_finnish_learning
 
 LOG = logging.getLogger(__name__)
 FREE_CATEGORY = "6170601b7a45476ff366cb18"
 
 
 def category_for(page, config):
+    if ("language_learning" in config["categories"] and config.get("filters", {}).get("allow_finnish_learning")
+            and is_finnish_learning(plain_text(page.get("name")),
+                                    plain_text(page.get("descriptionLong") or page.get("descriptionShort")))):
+        return "language_learning"
     categories = set(page.get("globalContentCategories", []))
     # Specific categories win over general cultural tags.
     for name in ("festivals", "exhibitions", "music", "food", "culture"):
@@ -33,7 +38,9 @@ def parse_tampere(page, municipality, config):
     if page.get("pageType") != "event" or page.get("privacy", "public") != "public":
         return None
     title = plain_text(page.get("name"))
-    if not title or any(re.search(p, title) for p in config["exclude_title_patterns"]):
+    description = plain_text(page.get("descriptionLong") or page.get("descriptionShort"))
+    source_categories = page.get("globalContentCategories", [])
+    if not title or exclusion_reason(title, description, source_categories, config):
         return None
     category = category_for(page, config)
     if not category:
@@ -76,12 +83,13 @@ def parse_tampere(page, municipality, config):
         raise ValueError("Matching event has no ID")
     return Event(
         source="tampere", source_id=source_id, title=title,
-        description=plain_text(page.get("descriptionLong") or page.get("descriptionShort")),
+        description=description,
         url=f"{config['sources']['tampere']['base_url']}/fi-FI/page/{source_id}",
         municipality=municipality, venue=venue, address=address, category=category,
         start=start.isoformat(), end=end.isoformat(), dates=dates, date_only=date_only,
         price=price_for(page), cancelled=bool(details.get("isCancelled")),
         ticket_url=safe_url(details.get("urlPurchaseTicket", "")),
+        source_categories=source_categories,
     )
 
 

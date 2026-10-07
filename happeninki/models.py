@@ -3,7 +3,7 @@ import hashlib
 import html
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -75,6 +75,7 @@ class Event:
     price: str = ""
     cancelled: bool = False
     ticket_url: str = ""
+    source_categories: list = field(default_factory=list)
 
     @property
     def source_key(self):
@@ -90,8 +91,8 @@ class Event:
     @property
     def fingerprint(self):
         data = asdict(self)
-        for field in ("source", "source_id", "url"):
-            data.pop(field)
+        for key in ("source", "source_id", "url", "source_categories"):
+            data.pop(key)
         return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
     @property

@@ -11,6 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config import load_config
+from .filters import event_exclusion_reason
 from .http import HttpClient
 from .models import next_month
 from .releases import ReleaseState
@@ -22,10 +23,12 @@ from .translator import TranslationUnavailable, Translator
 LOG = logging.getLogger("happeninki")
 
 
-def publish_pending(store, config, translator, telegram, today, checkpoint, deadline, now=None):
+def publish_pending(store, config, translator, telegram, today, checkpoint, deadline, now=None, blocked_sources=()):
     enabled_languages = [language for language in config["languages"] if telegram.channels.get(language)]
     hashes = {language: channel_hash(telegram.channels[language]) for language in enabled_languages}
     pending = store.pending(today, enabled_languages, hashes, now=now)
+    pending = [item for item in pending if item[1].source not in blocked_sources
+               and not event_exclusion_reason(item[1], config)]
     LOG.info("%d events queued for publication or update", len(pending))
     sent, failures = 0, 0
     for event_id, event, languages in pending[:config["max_events_per_run"]]:
@@ -103,6 +106,11 @@ def run(args):
                 LOG.warning("Resetting event history; previously published events may be posted again")
                 store.reset()
             store.ingest(events, today, initial_end)
+            blocked_sources = set(source_failures) | {
+                source for source, settings in config["sources"].items() if not settings["enabled"]}
+            for source, settings in config["sources"].items():
+                if settings["enabled"] and source not in source_failures:
+                    store.reconcile_selection(source, events, today, scan_end)
             if args.requeue_upcoming:
                 promoted = store.requeue_upcoming(events, today, scan_end)
                 LOG.info("Requeued %d baseline listings; successful publication receipts preserved", promoted)
@@ -112,6 +120,8 @@ def run(args):
                 hashes = {language: channel_hash(channels[language] or f"preview-{language}") for language in preview_languages}
                 pending = store.pending(today, preview_languages, hashes,
                                         now=datetime.now(ZoneInfo(config["timezone"])))
+                pending = [item for item in pending if item[1].source not in blocked_sources
+                           and not event_exclusion_reason(item[1], config)]
                 output = []
                 for _, event, languages in pending[:args.limit]:
                     item = {"event": asdict(event), "pending_languages": languages}
@@ -133,7 +143,7 @@ def run(args):
             checkpoint = remote.checkpoint if remote else lambda _: None
             checkpoint(store)  # Persist baseline and queue before the first send.
             sent, failures = publish_pending(store, config, translator, telegram, today, checkpoint, deadline,
-                                            now=datetime.now(ZoneInfo(config["timezone"])))
+                                            now=datetime.now(ZoneInfo(config["timezone"])), blocked_sources=blocked_sources)
             if remote:
                 remote.prune()
             LOG.info("Finished: %d Telegram posts/updates; %d processing failures; %d source failures", sent, failures, len(source_failures))

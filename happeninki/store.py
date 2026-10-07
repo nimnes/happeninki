@@ -31,6 +31,7 @@ class Store:
                 event_id TEXT NOT NULL, language TEXT NOT NULL, channel_hash TEXT NOT NULL,
                 message_id INTEGER NOT NULL, fingerprint TEXT NOT NULL,
                 PRIMARY KEY(event_id, language, channel_hash));
+            CREATE TABLE IF NOT EXISTS suppressed_events(event_id TEXT PRIMARY KEY);
         """)
         version = self.get_meta("schema_version")
         if version and version != SCHEMA_VERSION:
@@ -51,7 +52,7 @@ class Store:
     def reset(self):
         """Clear history locally; the caller checkpoints only after a complete scan."""
         with self.connection:
-            for table in ("publications", "translations", "aliases", "events"):
+            for table in ("publications", "translations", "aliases", "events", "suppressed_events"):
                 self.connection.execute(f"DELETE FROM {table}")
             self.connection.execute("DELETE FROM metadata WHERE key != 'schema_version'")
 
@@ -68,6 +69,23 @@ class Store:
                     promoted += self.connection.execute(
                         "UPDATE events SET eligible=1 WHERE id=? AND eligible=0", (alias[0],)).rowcount
         return promoted
+
+    def reconcile_selection(self, source, events, today, end):
+        """Suppress old queued listings absent from a successful filtered scan.
+
+        Keep receipts and eligibility intact so later preference changes can restore
+        a listing without repeating a post. Never call this for a failed source.
+        """
+        selected = {event.source_key for event in events if event.source == source}
+        with self.connection:
+            for row in self.connection.execute("SELECT id, payload FROM events").fetchall():
+                event = Event(**json.loads(row["payload"]))
+                if event.source != source or not event.overlaps(today, end):
+                    continue
+                if event.source_key in selected:
+                    self.connection.execute("DELETE FROM suppressed_events WHERE event_id=?", (row["id"],))
+                else:
+                    self.connection.execute("INSERT OR IGNORE INTO suppressed_events VALUES(?)", (row["id"],))
 
     def ingest(self, events, today, initial_end):
         first_launch = self.get_meta("initialized") is None
@@ -109,7 +127,8 @@ class Store:
 
     def pending(self, today, languages, channel_hashes, now=None):
         result = []
-        for row in self.connection.execute("SELECT * FROM events WHERE eligible=1"):
+        for row in self.connection.execute("""SELECT * FROM events WHERE eligible=1
+                AND id NOT IN (SELECT event_id FROM suppressed_events)"""):
             event = Event(**json.loads(row["payload"]))
             if not event.active_on(today):
                 continue

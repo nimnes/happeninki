@@ -1,12 +1,25 @@
 timezone = "Europe/Helsinki"
 languages = ["ru", "en"]
 municipalities = ["Tampere", "Nokia", "Ylöjärvi", "Pirkkala", "Kangasala", "Lempäälä"]
-categories = ["music", "exhibitions", "festivals", "food", "culture"]
+categories = ["music", "exhibitions", "festivals", "food", "culture", "language_learning"]
 # First launch covers one calendar month; later scans look further ahead.
 discovery_days = 365
 max_events_per_run = 100
 run_budget_seconds = 1080
-exclude_title_patterns = ["(?i)\\b\\w*(kurssi|kurssit|harrastusryhmä|harrastusryhmät|viikkotunti|viikkotunnit|digiopastus|digiopastukset)\\b"]
+exclude_title_patterns = ["(?i)\\b\\w*(harrastusryhmä|harrastusryhmät|viikkotunti|viikkotunnit|digiopastus|digiopastukset)\\b"]
+
+# Personal preferences. Set an exclusion to false to include that type again.
+[filters]
+exclude_children = true
+exclude_reading = true
+exclude_courses = true
+allow_finnish_learning = true
+exclude_workshops = true
+exclude_games = true  # Bingo, pub quizzes and karaoke.
+# Additional exact source category names, e.g. "dance" or "comedy".
+excluded_source_categories = []
+# Additional words/phrases to exclude from event titles, case-insensitive.
+exclude_title_keywords = []
 
 [ollama]
 url = "https://ollama.com/api/chat"
@@ -38,3 +51,4 @@ exhibitions = ["exhibitions", "museums", "museums and galleries", "visual arts",
 festivals = ["festivals", "fairs"]
 food = ["food and beverage"]
 culture = ["culture", "theatre", "movies", "literature", "comedy", "circus", "dance"]
+language_learning = []  # Recognized by Finnish-learning text rather than source tags.

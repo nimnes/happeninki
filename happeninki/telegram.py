@@ -8,10 +8,10 @@ from .models import safe_url
 
 LABELS = {
     "en": {"music": "🎵 Music", "exhibitions": "🖼 Exhibitions", "festivals": "🎉 Festivals",
-           "food": "🍴 Food", "culture": "🎭 Culture", "source": "Event details", "tickets": "Tickets",
+           "food": "🍴 Food", "culture": "🎭 Culture", "language_learning": "🇫🇮 Finnish learning", "source": "Event details", "tickets": "Tickets",
            "cancelled": "❌ Cancelled", "more": "More dates and opening hours at the source"},
     "ru": {"music": "🎵 Музыка", "exhibitions": "🖼 Выставки", "festivals": "🎉 Фестивали",
-           "food": "🍴 Еда", "culture": "🎭 Культура", "source": "Подробнее о событии", "tickets": "Билеты",
+           "food": "🍴 Еда", "culture": "🎭 Культура", "language_learning": "🇫🇮 Финский язык", "source": "Подробнее о событии", "tickets": "Билеты",
            "cancelled": "❌ Отменено", "more": "Другие даты и часы работы — по ссылке"},
 }
 
