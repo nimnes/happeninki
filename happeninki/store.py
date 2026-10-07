@@ -34,6 +34,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS suppressed_events(event_id TEXT PRIMARY KEY);
         """)
         version = self.get_meta("schema_version")
+        if "message_kind" not in {row[1] for row in self.connection.execute("PRAGMA table_info(publications)")}:
+            self.connection.execute("ALTER TABLE publications ADD COLUMN message_kind TEXT NOT NULL DEFAULT 'text'")
         if version and version != SCHEMA_VERSION:
             raise ValueError(f"Unsupported state schema {version}")
         self.set_meta("schema_version", SCHEMA_VERSION)
@@ -151,10 +153,10 @@ class Store:
         return self.connection.execute("SELECT * FROM publications WHERE event_id=? AND language=? AND channel_hash=?",
                                        (event_id, language, channel_hash)).fetchone()
 
-    def mark_published(self, event_id, language, channel_hash, message_id, fingerprint):
+    def mark_published(self, event_id, language, channel_hash, message_id, fingerprint, message_kind="text"):
         with self.connection:
-            self.connection.execute("INSERT OR REPLACE INTO publications VALUES(?,?,?,?,?)",
-                                    (event_id, language, channel_hash, message_id, fingerprint))
+            self.connection.execute("INSERT OR REPLACE INTO publications VALUES(?,?,?,?,?,?)",
+                                    (event_id, language, channel_hash, message_id, fingerprint, message_kind))
 
     def translation(self, event, language):
         row = self.connection.execute("SELECT payload FROM translations WHERE text_hash=? AND language=?",

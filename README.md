@@ -20,6 +20,10 @@ Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identi
 new listings, translates them and publishes a separate post for each event.
 Each post includes a short description, dates, location, price when available,
 and a link to the original listing.
+When an event has a cover image, new posts include it above the description.
+Long descriptions are shortened to fit a photo caption; dates, location and links
+are kept. If the image is unavailable or the details cannot fit, the bot posts text.
+Zero-euro prices are hidden. Existing text posts continue to be updated as text.
 
 Russian and English channels are independently optional: run either one or both.
 The bot remembers what it has posted in each channel and can update existing

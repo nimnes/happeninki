@@ -37,11 +37,21 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 LOG.warning("Run time budget reached; remaining events stay queued")
                 return sent, failures
             try:
+                publication = store.publication(event_id, language, hashes[language])
+                message_kind = publication["message_kind"] if publication else "text"
+                image_url = event.image_url if not publication or message_kind == "photo" else ""
                 translation = store.translation(event, language)
                 if translation is None:
                     translation = translator.translate(event, language)
                     store.cache_translation(event, language, translation)
-                message = build_message(event, translation, language, today)
+                photo = bool(image_url) or message_kind == "photo"
+                try:
+                    message = build_message(event, translation, language, today, 1024 if photo else 4096)
+                except ValueError:
+                    if publication and message_kind == "photo":
+                        raise
+                    image_url = ""
+                    message = build_message(event, translation, language, today)
             except TranslationUnavailable:
                 LOG.error("Ollama is unavailable or its allowance is exhausted; remaining events stay queued")
                 checkpoint(store)
@@ -52,14 +62,16 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 continue
             publication = store.publication(event_id, language, hashes[language])
             try:
-                message_id = telegram.publish(language, message, publication["message_id"] if publication else None)
+                extra = {"image_url": image_url, "message_kind": message_kind} if image_url or message_kind == "photo" else {}
+                message_id = telegram.publish(language, message, publication["message_id"] if publication else None, **extra)
             except Exception as exc:
                 # A transport timeout can mean Telegram accepted the message.
                 # Stop the run; never repeatedly submit it in this run.
                 LOG.error("Telegram failed for %s (%s): %s", event.source_key, language, exc)
                 checkpoint(store)
                 return sent, failures + 1
-            store.mark_published(event_id, language, hashes[language], message_id, event.fingerprint)
+            store.mark_published(event_id, language, hashes[language], message_id, event.fingerprint,
+                                 getattr(telegram, "last_message_kind", "text"))
             # If persistence fails, abort before any further messages are sent.
             checkpoint(store)
             sent += 1

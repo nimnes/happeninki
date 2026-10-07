@@ -386,6 +386,86 @@ class ReleaseTests(unittest.TestCase):
 
 
 class FormattingTests(unittest.TestCase):
+    @patch("happeninki.telegram.time.sleep")
+    def test_publication_remembers_photo_and_edits_same_post(self, sleep):
+        calls = []
+        class Http:
+            def request(self, url, **kwargs):
+                calls.append((url.rsplit("/", 1)[1], kwargs["body"]))
+                return {"ok": True, "result": {"message_id": 42}}
+        class Translator:
+            def translate(self, item, language):
+                return {"title": "Concert", "summary": "Music"}
+        config = load_config()
+        telegram = Telegram(Http(), "fake", {"en": "en"})
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "events.db")
+            item = event(image_url="https://example.org/cover.jpg")
+            store.ingest([item], TODAY, next_month(TODAY))
+            args = (store, config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 10)
+            self.assertEqual(publish_pending(*args), (1, 0))
+            key = store.pending(TODAY, ["ru"], HASHES)[0][0]
+            self.assertEqual(store.publication(key, "en", HASHES["en"])["message_kind"], "photo")
+            store.close()
+            store = Store(Path(directory) / "events.db")
+            store.ingest([replace(item, price="20 €")], TODAY, next_month(TODAY))
+            self.assertEqual(publish_pending(store, *args[1:]), (1, 0))
+            self.assertEqual([method for method, _ in calls], ["sendPhoto", "editMessageMedia"])
+            self.assertEqual(calls[1][1]["message_id"], 42)
+            store.close()
+
+    def test_cover_parsed_from_calendar(self):
+        page = json.loads((Path(__file__).parent / "fixtures/tampere-individual-dates.json").read_text())
+        page["imageDesktop"] = "a" * 64
+        parsed = parse_tampere(page, "Tampere", load_config())
+        self.assertEqual(parsed.image_url, "https://cdn.townbase.com/images/" + "a" * 64)
+        page["imageDesktop"] = "invalid"
+        self.assertEqual(parse_tampere(page, "Tampere", load_config()).image_url, "")
+
+    def test_photo_caption_shortens_summary_and_preserves_details(self):
+        message = build_message(event(), {"title": "Title", "summary": "😀 & music " * 200}, "en", TODAY, 1024)
+        self.assertLessEqual(len(message.encode("utf-16-le")) // 2, 1024)
+        self.assertIn("20.10.2026 19:00", message)
+        self.assertIn('href="https://example.org/event"', message)
+        self.assertIn("…", message)
+
+    @patch("happeninki.telegram.time.sleep")
+    def test_photo_send_and_update(self, sleep):
+        calls = []
+        class Http:
+            def request(self, url, **kwargs):
+                calls.append((url.rsplit("/", 1)[1], kwargs["body"]))
+                return {"ok": True, "result": {"message_id": 42}}
+        telegram = Telegram(Http(), "fake", {"en": "en"})
+        self.assertEqual(telegram.publish("en", "Caption", image_url="https://example.org/cover.jpg"), 42)
+        telegram.publish("en", "Updated", 42, "https://example.org/new.jpg", "photo")
+        telegram.publish("en", "Cancelled", 42, message_kind="photo")
+        self.assertEqual([method for method, _ in calls], ["sendPhoto", "editMessageMedia", "editMessageCaption"])
+        self.assertEqual(calls[0][1]["caption"], "Caption")
+        self.assertEqual(calls[1][1]["media"]["caption"], "Updated")
+
+    @patch("happeninki.telegram.time.sleep")
+    def test_rejected_image_falls_back_but_network_error_does_not(self, sleep):
+        calls = []
+        class Http:
+            def request(self, url, **kwargs):
+                calls.append(url.rsplit("/", 1)[1])
+                if calls[-1] == "sendPhoto":
+                    raise RemoteError("Telegram", 400, description="Bad Request: failed to get HTTP URL content")
+                return {"ok": True, "result": {"message_id": 42}}
+        telegram = Telegram(Http(), "fake", {"en": "en"})
+        self.assertEqual(telegram.publish("en", "Caption", image_url="https://example.org/cover.jpg"), 42)
+        self.assertEqual(calls, ["sendPhoto", "sendMessage"])
+        self.assertEqual(telegram.last_message_kind, "text")
+        class Network:
+            def request(self, url, **kwargs):
+                calls.append("network")
+                raise RemoteError("Telegram")
+        telegram.http = Network()
+        with self.assertRaises(RemoteError):
+            telegram.publish("en", "Caption", image_url="https://example.org/cover.jpg")
+        self.assertEqual(calls.count("network"), 1)
+
     def test_month_boundary(self):
         self.assertEqual(next_month(date(2026, 1, 31)), date(2026, 2, 28))
         self.assertEqual(next_month(date(2026, 12, 15)), date(2027, 1, 15))

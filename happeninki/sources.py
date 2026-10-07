@@ -90,6 +90,8 @@ def parse_tampere(page, municipality, config):
         price=price_for(page), cancelled=bool(details.get("isCancelled")),
         ticket_url=safe_url(details.get("urlPurchaseTicket", "")),
         source_categories=source_categories,
+        image_url=(f"https://cdn.townbase.com/images/{page['imageDesktop']}"
+                   if re.fullmatch(r"[0-9a-f]{64}", str(page.get("imageDesktop", ""))) else ""),
     )
 
 

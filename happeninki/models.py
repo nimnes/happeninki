@@ -76,6 +76,7 @@ class Event:
     cancelled: bool = False
     ticket_url: str = ""
     source_categories: list = field(default_factory=list)
+    image_url: str = ""
 
     @property
     def source_key(self):
@@ -93,6 +94,8 @@ class Event:
         data = asdict(self)
         for key in ("source", "source_id", "url", "source_categories"):
             data.pop(key)
+        if not self.image_url:
+            data.pop("image_url")
         return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
     @property
