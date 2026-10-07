@@ -3,6 +3,7 @@ import html
 import re
 import time
 from datetime import datetime
+from urllib.parse import urlencode
 
 from .http import RemoteError
 from .models import safe_url
@@ -26,6 +27,17 @@ def date_label(value, date_only=False):
     return dt.strftime("%d.%m.%Y" if date_only else "%d.%m.%Y %H:%M")
 
 
+def location_label(event):
+    parts, seen = [], set()
+    for value in (event.address or event.venue, event.municipality):
+        for part in value.split(","):
+            part = re.sub(r"^(?:FI-)?\d{5}(?:\s+|$)", "", part.strip(), flags=re.I).strip()
+            if part and part.casefold() not in seen:
+                parts.append(part)
+                seen.add(part.casefold())
+    return ", ".join(parts)
+
+
 def build_message(event, translation, language, today, max_length=4096):
     labels = LABELS[language]
     lines = [labels[event.category]]
@@ -44,7 +56,10 @@ def build_message(event, translation, language, today, max_length=4096):
         lines.append("🗓 " + start + (" – " + end if end != start else ""))
         if event.date_only:
             lines.append(labels["more"])
-    lines.append("📍 " + html.escape(", ".join(dict.fromkeys(v for v in (event.address or event.venue, event.municipality) if v))))
+    location = location_label(event)
+    if location:
+        maps_url = "https://www.google.com/maps/search/?" + urlencode({"api": "1", "query": location})
+        lines.append(f'📍 <a href="{html.escape(maps_url, quote=True)}">{html.escape(location)}</a>')
     if event.price and not re.fullmatch(r"\s*0(?:[.,]0+)?\s*(?:€|EUR|euros?)\s*", event.price, re.I):
         lines.append("💶 " + html.escape(event.price))
     lines.append("")
