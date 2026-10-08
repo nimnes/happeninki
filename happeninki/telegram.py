@@ -18,6 +18,12 @@ LABELS = {
 }
 
 
+class TelegramThrottled(RuntimeError):
+    def __init__(self, retry_after):
+        self.retry_after = retry_after
+        super().__init__("Telegram is throttling publication; remaining events stay queued")
+
+
 def channel_hash(channel):
     return hashlib.sha256(channel.encode()).hexdigest()
 
@@ -124,8 +130,8 @@ class Telegram:
                 return message_id
             if exc.status != 429:
                 raise
-            raise RuntimeError("Telegram is throttling publication; remaining events stay queued") from None
+            raise TelegramThrottled(exc.retry_after) from None
         if not response.get("ok") or not isinstance(response.get("result"), dict):
             raise RuntimeError("Telegram did not confirm publication")
-        time.sleep(1.1)
+        time.sleep(3.1)
         return response["result"]["message_id"]

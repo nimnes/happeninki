@@ -17,7 +17,7 @@ from happeninki.models import Event, next_month
 from happeninki.releases import ReleaseState
 from happeninki.sources import TampereSource, parse_syo, parse_tampere
 from happeninki.store import Store, validate_database
-from happeninki.telegram import Telegram, build_message, channel_hash
+from happeninki.telegram import Telegram, TelegramThrottled, build_message, channel_hash
 from happeninki.translator import TranslationUnavailable, Translator
 
 
@@ -238,6 +238,50 @@ class StateTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    @patch("happeninki.__main__.time.sleep")
+    def test_rate_limit_waits_then_retries_same_event(self, sleep):
+        self.ingest([event()])
+        calls = []
+        class Sender:
+            channels = {"ru": "ru"}
+            def publish(self, language, message, message_id=None):
+                calls.append((language, message, message_id))
+                if len(calls) == 1:
+                    raise TelegramThrottled(65)
+                return 123
+        sent = publish_pending(self.store, self.config, self.translator, Sender(), TODAY,
+                               lambda _: None, time.monotonic() + 100)
+        self.assertEqual(sent, (1, 0))
+        self.assertEqual(calls[0], calls[1])
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [60, 6])
+        self.assertEqual(self.store.pending(TODAY, ["ru"], HASHES), [])
+
+    @patch("happeninki.__main__.time.sleep")
+    def test_rate_limit_long_cooldown_preserves_queue(self, sleep):
+        self.ingest([event()])
+        class Sender:
+            channels = {"ru": "ru"}
+            def publish(self, *args):
+                raise TelegramThrottled(120)
+        self.assertEqual(publish_pending(self.store, self.config, self.translator, Sender(), TODAY,
+                         lambda _: None, time.monotonic() + 20), (0, 0))
+        sleep.assert_not_called()
+        self.assertEqual(self.store.pending(TODAY, ["ru"], HASHES)[0][2], ["ru"])
+
+    @patch("happeninki.__main__.time.sleep")
+    def test_repeated_rate_limits_have_bounded_retries(self, sleep):
+        self.ingest([event()])
+        calls = []
+        class Sender:
+            channels = {"ru": "ru"}
+            def publish(self, *args):
+                calls.append(1)
+                raise TelegramThrottled(1)
+        self.assertEqual(publish_pending(self.store, self.config, self.translator, Sender(), TODAY,
+                         lambda _: None, time.monotonic() + 100), (0, 0))
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(sleep.call_count, 3)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "events.db")
@@ -386,6 +430,14 @@ class ReleaseTests(unittest.TestCase):
 
 
 class FormattingTests(unittest.TestCase):
+    def test_telegram_exposes_rate_limit_cooldown(self):
+        class Http:
+            def request(self, *args, **kwargs):
+                raise RemoteError("Telegram", 429, retry_after=37)
+        with self.assertRaises(TelegramThrottled) as caught:
+            Telegram(Http(), "fake", {"ru": "ru"}).publish("ru", "Message")
+        self.assertEqual(caught.exception.retry_after, 37)
+
     @patch("happeninki.telegram.time.sleep")
     def test_publication_remembers_photo_and_edits_same_post(self, sleep):
         calls = []

@@ -17,7 +17,7 @@ from .models import next_month
 from .releases import ReleaseState
 from .sources import collect
 from .store import Store, validate_database
-from .telegram import Telegram, build_message, channel_hash
+from .telegram import Telegram, TelegramThrottled, build_message, channel_hash
 from .translator import TranslationUnavailable, Translator
 
 LOG = logging.getLogger("happeninki")
@@ -63,7 +63,23 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
             publication = store.publication(event_id, language, hashes[language])
             try:
                 extra = {"image_url": image_url, "message_kind": message_kind} if image_url or message_kind == "photo" else {}
-                message_id = telegram.publish(language, message, publication["message_id"] if publication else None, **extra)
+                for attempt in range(4):
+                    try:
+                        message_id = telegram.publish(language, message, publication["message_id"] if publication else None, **extra)
+                        break
+                    except TelegramThrottled as exc:
+                        checkpoint(store)
+                        delay = exc.retry_after
+                        if (attempt == 3 or not isinstance(delay, (int, float)) or isinstance(delay, bool)
+                                or delay <= 0 or delay + 15 >= deadline - time.monotonic()):
+                            LOG.warning("Telegram cooldown exceeds retry or run budget (retry_after=%s); remaining events stay queued", delay)
+                            return sent, failures
+                        LOG.warning("Telegram rate limit: waiting %s seconds before retrying %s (%s)", delay, event.source_key, language)
+                        remaining = delay + 1
+                        while remaining > 0:
+                            pause = min(remaining, 60)
+                            time.sleep(pause)
+                            remaining -= pause
             except Exception as exc:
                 # A transport timeout can mean Telegram accepted the message.
                 # Stop the run; never repeatedly submit it in this run.
