@@ -140,6 +140,8 @@ class Store:
                     continue
             pending = []
             for language in languages:
+                if event.delivery_languages and language not in event.delivery_languages:
+                    continue
                 publication = self.publication(row["id"], language, channel_hashes[language])
                 if publication is None and event.cancelled:
                     continue

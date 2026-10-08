@@ -53,3 +53,12 @@ festivals = ["festivals", "fairs"]
 food = ["food and beverage"]
 culture = ["culture", "theatre", "movies", "literature", "comedy", "circus", "dance"]
 language_learning = []  # Recognized by Finnish-learning text rather than source tags.
+
+[sources.art_master]
+enabled = true
+base_url = "https://ru.art-master.fi"
+municipalities = ["Tampere", "Nokia", "Ylöjärvi", "Pirkkala", "Kangasala", "Lempäälä", "Jyväskylä", "Helsinki"]
+delivery_languages = ["ru"]
+# Treat this Russian theatre's calendar as Russian-language performances.
+# Set [] to require explicit language statements on each event instead.
+performance_languages = ["ru"]

@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from .models import Event, parse_datetime, plain_text, safe_url
 from .filters import exclusion_reason, is_finnish_learning
+from .art_master import ArtMasterSource
 
 LOG = logging.getLogger(__name__)
 FREE_CATEGORY = "6170601b7a45476ff366cb18"
@@ -183,8 +184,8 @@ class SyoSource:
 
 def collect(config, http, start, end):
     events, failures = [], []
-    for source_class in (TampereSource, SyoSource):
-        if not config["sources"][source_class.name]["enabled"]:
+    for source_class in (TampereSource, SyoSource, ArtMasterSource):
+        if not config["sources"].get(source_class.name, {}).get("enabled", False):
             continue
         try:
             batch = source_class(config, http).fetch(start, end)
@@ -193,6 +194,6 @@ def collect(config, http, start, end):
         except Exception as exc:
             LOG.error("%s failed: %s", source_class.name, exc)
             failures.append(source_class.name)
-    if not any(config["sources"][name]["enabled"] for name in ("tampere", "syo")):
+    if not any(config["sources"].get(name, {}).get("enabled", False) for name in ("tampere", "syo", "art_master")):
         raise ValueError("Enable at least one event source")
     return sorted(events, key=lambda e: (e.start, e.title)), failures

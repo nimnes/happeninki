@@ -77,6 +77,8 @@ class Event:
     ticket_url: str = ""
     source_categories: list = field(default_factory=list)
     image_url: str = ""
+    delivery_languages: list = field(default_factory=list)
+    performance_languages: list = field(default_factory=list)
 
     @property
     def source_key(self):
@@ -96,6 +98,9 @@ class Event:
             data.pop(key)
         if not self.image_url:
             data.pop("image_url")
+        for key in ("delivery_languages", "performance_languages"):
+            if not data[key]:
+                data.pop(key)
         return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
     @property

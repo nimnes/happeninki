@@ -34,8 +34,9 @@ exhibitions already open. After that, it looks for newly discovered events up to
 six months ahead (180 days). Large backlogs are published in batches, so the first launch may
 need several runs.
 
-Events come from the [Tampere event calendar](https://tapahtumat.tampere.fi) and
-[SYÖ!-viikot](https://syoviikot.fi). Coverage depends on what organizers list there.
+Events come from the [Tampere event calendar](https://tapahtumat.tampere.fi),
+[SYÖ!-viikot](https://syoviikot.fi), and the [Art Master calendar](https://ru.art-master.fi/afisha)
+(Russian channel). Coverage depends on what organizers list there.
 The SYÖ! connection is included, but still needs verification with a published
 campaign when the next one becomes available.
 
@@ -117,6 +118,19 @@ six-month window. Use `mode=preview` to inspect the effect first. On subsequent 
 both options off so the bot resumes its queue instead of resetting it again.
 
 ## Make it yours
+
+The [Art Master calendar](https://ru.art-master.fi/afisha) is also scanned for the
+Russian channel only. Its source settings include Jyväskylä and Helsinki alongside
+the Tampere area; these extra cities do not expand the Tampere calendar scan.
+Children's events remain excluded. Dates, tickets and cover images are taken from
+individual calendar entries when available. Touring events without a published
+street address link to their city instead.
+
+`[sources.art_master]` controls its cities and channel languages. The source is
+configured to treat its theatre performances as Russian-language productions;
+this is a source-level assumption, not language metadata verified for each show.
+Set `performance_languages = []` to require an explicit performance-language
+statement per listing, or `enabled = false` to disable this source.
 
 [config.toml](config.toml) controls the municipalities, event categories, filters,
 model and publishing limits. The daily posting time is set in the

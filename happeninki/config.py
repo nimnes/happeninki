@@ -30,6 +30,17 @@ def load_config(path="config.toml"):
     theatre_languages = filters.get("theatre_languages", [])
     if not isinstance(theatre_languages, list) or any(language not in {"en", "ru"} for language in theatre_languages):
         raise ValueError('filters.theatre_languages must contain only "en" or "ru", or be empty')
+    art_master = config["sources"].get("art_master", {})
+    if art_master.get("enabled"):
+        for key in ("municipalities", "delivery_languages", "performance_languages"):
+            values = art_master.get(key)
+            if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
+                raise ValueError(f"sources.art_master.{key} must be a list of nonempty strings")
+        if not art_master["municipalities"] or not art_master["delivery_languages"]:
+            raise ValueError("Art Master needs municipalities and delivery languages")
+        for key in ("delivery_languages", "performance_languages"):
+            if any(value not in {"ru", "en"} for value in art_master[key]):
+                raise ValueError(f"sources.art_master.{key} only supports ru and en")
     for key in ("discovery_days", "max_events_per_run", "run_budget_seconds"):
         if config[key] <= 0:
             raise ValueError(f"{key} must be positive.")

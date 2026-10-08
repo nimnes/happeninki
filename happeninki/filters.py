@@ -55,10 +55,14 @@ def is_finnish_learning(title, description):
                 (LANGUAGE_ACTIVITY.search(title) and FINNISH_PRACTICE.search(description)))
 
 
-def exclusion_reason(title, description, source_categories, config):
+def exclusion_reason(title, description, source_categories, config, performance_languages=()):
     preferences = config.get("filters", {})
     title, description = plain_text(title), plain_text(description)
     tags = {tag.casefold() for tag in source_categories}
+    if preferences.get("exclude_courses") and re.search(r'\bкурсы?\b', title, re.I):
+        return "courses"
+    if preferences.get("exclude_workshops") and re.search(r'\b(?:мастер-класс\w*|воркшоп\w*)\b', title, re.I):
+        return "workshops"
     if any(re.search(pattern, title) for pattern in config.get("exclude_title_patterns", [])):
         return "custom title pattern"
     if any(keyword.casefold() in title.casefold() for keyword in preferences.get("exclude_title_keywords", [])):
@@ -80,12 +84,14 @@ def exclusion_reason(title, description, source_categories, config):
         return "bingo, quizzes or karaoke"
     if preferences.get("theatre_languages") and (
             tags.intersection({"theatre", "theater"}) or THEATRE.search(title)):
-        if not has_allowed_theatre_language(title, description, preferences["theatre_languages"]):
+        if not (set(performance_languages).intersection(preferences["theatre_languages"])
+                or has_allowed_theatre_language(title, description, preferences["theatre_languages"])):
             return "theatre without confirmed allowed performance language"
     return None
 
 
 def event_exclusion_reason(event, config):
-    if event.municipality not in config["municipalities"] or event.category not in config["categories"]:
+    municipalities = config["sources"].get(event.source, {}).get("municipalities", config["municipalities"])
+    if event.municipality not in municipalities or event.category not in config["categories"]:
         return "area or category"
-    return exclusion_reason(event.title, event.description, event.source_categories, config)
+    return exclusion_reason(event.title, event.description, event.source_categories, config, event.performance_languages)
