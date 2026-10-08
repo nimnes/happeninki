@@ -31,7 +31,7 @@ messages when an event changes or the source reports a cancellation.
 
 On the first launch, it queues events happening within the **next month**, including
 exhibitions already open. After that, it looks for newly discovered events up to
-a year ahead. Large backlogs are published in batches, so the first launch may
+six months ahead (180 days). Large backlogs are published in batches, so the first launch may
 need several runs.
 
 Events come from the [Tampere event calendar](https://tapahtumat.tampere.fi) and
@@ -110,10 +110,10 @@ The manual workflow also offers:
 | Option | What it does |
 | --- | --- |
 | `reset_state` | Clears history and repeats the first-month launch. Existing Telegram posts remain, so events can be posted again. |
-| `requeue_upcoming` | Queues currently listed upcoming events up to a year ahead, including those skipped by the initial month window. Preserves successful posts. |
+| `requeue_upcoming` | Queues currently listed upcoming events up to six months ahead, including those skipped by the initial month window. Preserves successful posts. |
 
 Enable both to start fresh and queue all collected upcoming events within that
-year. Use `mode=preview` to inspect the effect first. On subsequent runs, leave
+six-month window. Use `mode=preview` to inspect the effect first. On subsequent runs, leave
 both options off so the bot resumes its queue instead of resetting it again.
 
 ## Make it yours
