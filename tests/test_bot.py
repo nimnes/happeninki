@@ -17,7 +17,7 @@ from happeninki.models import Event, next_month
 from happeninki.releases import ReleaseState
 from happeninki.sources import TampereSource, parse_syo, parse_tampere
 from happeninki.store import Store, validate_database
-from happeninki.telegram import Telegram, TelegramThrottled, build_message, channel_hash
+from happeninki.telegram import Telegram, TelegramThrottled, build_message, channel_hash, date_range_label
 from happeninki.translator import TranslationUnavailable, Translator
 
 
@@ -430,6 +430,21 @@ class ReleaseTests(unittest.TestCase):
 
 
 class FormattingTests(unittest.TestCase):
+    def test_compact_dates_preserve_cross_day_and_year_information(self):
+        self.assertEqual(date_range_label("2026-10-10T18:30", "2026-10-10T20:30", TODAY), "10.10 · 18:30–20:30")
+        self.assertEqual(date_range_label("2026-10-10T23:00", "2026-10-11T01:00", TODAY), "10.10 · 23:00 – 11.10 · 01:00")
+        self.assertEqual(date_range_label("2026-12-31T23:00", "2027-01-01T01:00", TODAY), "31.12.2026 · 23:00 – 01.01.2027 · 01:00")
+        self.assertEqual(date_range_label("2027-01-01", "2027-01-10", TODAY, True), "01.01.2027–10.01.2027")
+
+    def test_location_separate_from_dates_with_single_multiline_map_link(self):
+        item = event(venue="TTT Eino Salmelaisen näyttämö",
+                     address="TTT Eino Salmelaisen näyttämö, Hämeenpuisto 28–32, 33100 Tampere")
+        message = build_message(item, {"title": "Play", "summary": "Summary"}, "ru", TODAY)
+        self.assertIn("📅 <b>Даты и время</b>\n20.10 · 19:00–21:00\n\n📍 <b>Место</b>", message)
+        self.assertIn("TTT Eino Salmelaisen näyttämö\nHämeenpuisto 28–32, Tampere</a>", message)
+        self.assertEqual(message.count("https://www.google.com/maps/search/"), 1)
+        self.assertNotIn("33100", message)
+
     def test_telegram_exposes_rate_limit_cooldown(self):
         class Http:
             def request(self, *args, **kwargs):
@@ -477,7 +492,7 @@ class FormattingTests(unittest.TestCase):
     def test_photo_caption_shortens_summary_and_preserves_details(self):
         message = build_message(event(), {"title": "Title", "summary": "😀 & music " * 200}, "en", TODAY, 1024)
         self.assertLessEqual(len(message.encode("utf-16-le")) // 2, 1024)
-        self.assertIn("20.10.2026 19:00", message)
+        self.assertIn("20.10 · 19:00–21:00", message)
         self.assertIn('href="https://example.org/event"', message)
         self.assertIn("…", message)
 
@@ -526,12 +541,12 @@ class FormattingTests(unittest.TestCase):
         message = build_message(event(), {"title": "<b>Title</b>", "summary": "A & B"}, "en", TODAY)
         self.assertIn("&lt;b&gt;Title&lt;/b&gt;", message)
         self.assertIn("A &amp; B", message)
-        self.assertIn("20.10.2026 19:00", message)
+        self.assertIn("20.10 · 19:00–21:00", message)
 
     def test_schedule_shows_dates_not_fake_midnight_times(self):
         message = build_message(event(date_only=True), {"title": "Title", "summary": "Summary"}, "ru", TODAY)
         self.assertNotIn("19:00", message)
-        self.assertIn("20.10.2026", message)
+        self.assertIn("20.10", message)
 
     def test_translation_response_validation(self):
         class Http:

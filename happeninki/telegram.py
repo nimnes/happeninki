@@ -11,10 +11,12 @@ from .models import safe_url
 LABELS = {
     "en": {"music": "🎵 Music", "exhibitions": "🖼 Exhibitions", "festivals": "🎉 Festivals",
            "food": "🍴 Food", "culture": "🎭 Culture", "language_learning": "🇫🇮 Finnish learning", "source": "Event details", "tickets": "Tickets",
-           "cancelled": "❌ Cancelled", "more": "More dates and opening hours at the source"},
+           "cancelled": "❌ Cancelled", "more": "More dates at the source", "hours": "Opening hours at the source",
+           "dates": "Dates and times", "location": "Location"},
     "ru": {"music": "🎵 Музыка", "exhibitions": "🖼 Выставки", "festivals": "🎉 Фестивали",
            "food": "🍴 Еда", "culture": "🎭 Культура", "language_learning": "🇫🇮 Финский язык", "source": "Подробнее о событии", "tickets": "Билеты",
-           "cancelled": "❌ Отменено", "more": "Другие даты и часы работы — по ссылке"},
+           "cancelled": "❌ Отменено", "more": "Другие даты — по ссылке", "hours": "Часы работы — по ссылке",
+           "dates": "Даты и время", "location": "Место"},
 }
 
 
@@ -28,9 +30,16 @@ def channel_hash(channel):
     return hashlib.sha256(channel.encode()).hexdigest()
 
 
-def date_label(value, date_only=False):
-    dt = datetime.fromisoformat(value)
-    return dt.strftime("%d.%m.%Y" if date_only else "%d.%m.%Y %H:%M")
+def date_range_label(start, end, today, date_only=False):
+    start, end = datetime.fromisoformat(start), datetime.fromisoformat(end)
+    pattern = "%d.%m.%Y" if start.year != today.year or end.year != today.year else "%d.%m"
+    beginning, finish = start.strftime(pattern), end.strftime(pattern)
+    if date_only:
+        return beginning + ("–" + finish if finish != beginning else "")
+    start_time, end_time = start.strftime("%H:%M"), end.strftime("%H:%M")
+    if start.date() == end.date():
+        return beginning + " · " + start_time + ("–" + end_time if end_time != start_time else "")
+    return beginning + " · " + start_time + " – " + finish + " · " + end_time
 
 
 def location_label(event):
@@ -50,22 +59,26 @@ def build_message(event, translation, language, today, max_length=4096):
     if event.cancelled:
         lines.append(labels["cancelled"])
     lines.extend(["", "<b>" + html.escape(translation["title"]) + "</b>", "", html.escape(translation["summary"]), ""])
+    lines.append("📅 <b>" + labels["dates"] + "</b>")
     if event.dates:
         dates = [d for d in event.dates if datetime.fromisoformat(d["end"]).date() >= today]
         for item in dates[:5]:
-            start, end = date_label(item["start"]), date_label(item["end"])
-            lines.append("🗓 " + start + (" – " + end if end != start else ""))
+            lines.append(date_range_label(item["start"], item["end"], today))
         if len(dates) > 5:
             lines.append(labels["more"])
     else:
-        start, end = date_label(event.start, event.date_only), date_label(event.end, event.date_only)
-        lines.append("🗓 " + start + (" – " + end if end != start else ""))
+        lines.append(date_range_label(event.start, event.end, today, event.date_only))
         if event.date_only:
-            lines.append(labels["more"])
+            lines.append(labels["hours"])
     location = location_label(event)
     if location:
         maps_url = "https://www.google.com/maps/search/?" + urlencode({"api": "1", "query": location})
-        lines.append(f'📍 <a href="{html.escape(maps_url, quote=True)}">{html.escape(location)}</a>')
+        display_location = location
+        parts = location.split(", ")
+        if len(parts) > 1 and parts[0].casefold() == event.venue.strip().casefold() and not re.search(r"\d", parts[0]):
+            display_location = parts[0] + "\n" + ", ".join(parts[1:])
+        lines.extend(["", "📍 <b>" + labels["location"] + "</b>",
+                      f'<a href="{html.escape(maps_url, quote=True)}">{html.escape(display_location)}</a>'])
     if event.price and not re.fullmatch(r"\s*0(?:[.,]0+)?\s*(?:€|EUR|euros?)\s*", event.price, re.I):
         lines.append("💶 " + html.escape(event.price))
     lines.append("")
