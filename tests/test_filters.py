@@ -59,6 +59,45 @@ class PreferenceTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertIsNotNone(self.reason(title))
 
+    def test_theatre_requires_explicit_english_performance(self):
+        for description in ("", "Esitys on suomeksi.", "A famous play by Shakespeare.",
+                            "English subtitles available.", "Performed in Finnish with English surtitles.",
+                            "Not performed in English."):
+            with self.subTest(description=description):
+                self.assertIsNotNone(self.reason("Hamlet", description, ["theatre"]))
+        for description in ("Performed in English.", "The play is in English.",
+                            "Esityskieli: englanti.", "Esitys esitetään englanniksi.",
+                            "Englanninkielinen näytelmä.", "English-language performance."):
+            with self.subTest(description=description):
+                self.assertIsNone(self.reason("Hamlet", description, ["theatre"]))
+        self.assertIsNone(self.reason("Hamlet (in English)", tags=["theatre"]))
+
+    def test_theatre_filter_scoped_and_optional(self):
+        self.assertIsNone(self.reason("Concert", "Esitys on suomeksi.", ["music"]))
+        self.assertIsNotNone(self.reason("Uusi näytelmä", tags=["culture"]))
+        self.config["filters"]["theatre_languages"] = []
+        self.assertIsNone(self.reason("Hamlet", tags=["theatre"]))
+
+    def test_russian_theatre_allowed_but_subtitles_are_not_enough(self):
+        for description in ("Performed in Russian.", "Esityskieli: venäjä.",
+                            "Esitys esitetään venäjäksi.", "Venäjänkielinen näytelmä.",
+                            "Спектакль на русском языке.", "Язык спектакля: русский.",
+                            "Not performed in English. Performed in Russian."):
+            with self.subTest(description=description):
+                self.assertIsNone(self.reason("Hamlet", description, ["theatre"]))
+        for description in ("Russian subtitles available.", "Not performed in Russian.",
+                            "Спектакль на финском языке. Субтитры на русском языке."):
+            self.assertIsNotNone(self.reason("Hamlet", description, ["theatre"]))
+        self.config["filters"]["theatre_languages"] = ["en"]
+        self.assertIsNotNone(self.reason("Hamlet", "Performed in Russian.", ["theatre"]))
+
+    def test_listing_language_does_not_establish_performance_language(self):
+        page = self.page("Hamlet", ["theatre"], "A famous Finnish production.")
+        page.update(inLanguage="en", languages=["fi", "en"])
+        self.assertIsNone(parse_tampere(page, "Tampere", self.config))
+        page["descriptionLong"] = "Performed in English."
+        self.assertIsNotNone(parse_tampere(page, "Tampere", self.config))
+
     def test_finnish_learning_included_without_culture_tag(self):
         for title, description in (("Suomen kielen kurssi", ""), ("Finnish language course", ""),
                 ("Puhutaan suomea", ""), ("Kielikahvila", "Harjoitellaan suomea yhdessä.")):

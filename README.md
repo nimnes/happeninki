@@ -132,6 +132,7 @@ exclude_courses = true
 allow_finnish_learning = true
 exclude_workshops = true
 exclude_games = true
+theatre_languages = ["en", "ru"]
 excluded_source_categories = []
 exclude_title_keywords = []
 ```
@@ -142,6 +143,13 @@ title phrases such as `"open mic"` to `exclude_title_keywords`. Reading exclusio
 also cover listings tagged as literature; library concerts and exhibitions can
 still be included. Clear Finnish-learning titles can be included even when they
 are listed outside the usual cultural categories.
+
+`theatre_languages` keeps theatre listings only when the title or description
+explicitly says the performance is in English or Russian, for example "performed
+in English", "esityskieli: venäjä", or "спектакль на русском языке". Unknown languages
+are excluded. Translated listings, titles, or subtitles alone do not establish the
+performance language. Use `["en"]` or `["ru"]` to allow just one language, or `[]`
+to include theatre in any language.
 
 New preferences apply to previously queued events too, without resetting history.
 They do not delete messages already posted to Telegram. These are category and

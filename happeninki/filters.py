@@ -12,6 +12,40 @@ LANGUAGE_ACTIVITY = re.compile(r"\b(\w*kurss\w*|\w*kielikahvila\w*|\w*keskustelu
 FINNISH_PRACTICE = re.compile(r"\b(suomen\s+kielen\s+(?:kurss\w*|opetu\w*|oppimi\w*|opiskel\w*|harjoit\w*)|(?:puhutaan|puhu|opitaan|opiskellaan|harjoitellaan)\s+suomea|suomea\s+(?:oppi\w*|opiskele\w*|harjoit\w*)|finnish\s+(?:language\s+)?(?:courses?|classes?|lessons?|conversation)|(?:learn|learning|practice|practise)\s+finnish)\b", re.I)
 WORKSHOPS = re.compile(r"\b(\w*työpaja\w*|\w*askartelu\w*|workshops?|craft\s+(?:group|session))\b", re.I)
 GAMES = re.compile(r"\b(\w*bingo\w*|pub\s*quiz\w*|pubivisa\w*|tietovisa\w*|karaoke\w*)\b", re.I)
+THEATRE = re.compile(r"\b(\w*näytelmä\w*|teatteriesitys\w*|stage\s+play|theatr(?:e|ical)\s+(?:play|performance))\b", re.I)
+ENGLISH_PERFORMANCE = re.compile(
+    r"\b(?:esityskieli\s*(?:on|:)?\s*englanti|"
+    r"(?:esitys|näytelmä)\s+(?:esitetään|on|puhutaan)\s+(?:englanniksi|englannin\s+kielellä|englanninkielinen)|"
+    r"esitetään\s+(?:englanniksi|englannin\s+kielellä)|"
+    r"englanninkieli\w*\s+(?:teatteriesitys|esitys|näytelmä)|"
+    r"(?:performed|presented|staged)\s+in\s+english|"
+    r"(?:performance|play|show)\s+(?:is\s+)?in\s+english|"
+    r"(?:performance\s+language|language\s+of\s+(?:the\s+)?(?:performance|play|show))\s*:\s*english|"
+    r"english[- ]language\s+(?:performance|play|show))\b", re.I)
+NOT_ENGLISH_PERFORMANCE = re.compile(
+    r"\b(?:not\s+(?:(?:performed|presented|staged)\s+)?in\s+english|"
+    r"ei\s+(?:esitetä\s+)?(?:englanniksi|englannin\s+kielellä|englanninkielinen))\b", re.I)
+
+
+RUSSIAN_PERFORMANCE = re.compile(
+    ENGLISH_PERFORMANCE.pattern.replace("english", "russian").replace("englanti", "venäjä")
+    .replace("englanniksi", "venäjäksi").replace("englannin", "venäjän").replace("englanninkieli", "venäjänkieli")
+    + r"|\b(?:спектакль|постановка|представление)\s+(?:идёт\s+|идет\s+)?на\s+русском(?:\s+языке)?\b"
+    + r"|\bязык\s+(?:спектакля|постановки)\s*:\s*русский\b", re.I)
+NOT_RUSSIAN_PERFORMANCE = re.compile(
+    NOT_ENGLISH_PERFORMANCE.pattern.replace("english", "russian").replace("englanniksi", "venäjäksi")
+    .replace("englannin", "venäjän").replace("englanninkielinen", "venäjänkielinen")
+    + r"|\bне\s+на\s+русском\b", re.I)
+
+
+def has_allowed_theatre_language(title, description, languages):
+    text = title + ". " + description
+    for language in languages:
+        positive, negative, name = ((ENGLISH_PERFORMANCE, NOT_ENGLISH_PERFORMANCE, "english")
+                                   if language == "en" else (RUSSIAN_PERFORMANCE, NOT_RUSSIAN_PERFORMANCE, "russian"))
+        if not negative.search(text) and (positive.search(text) or re.search(r"\(in " + name + r"\)", title, re.I)):
+            return True
+    return False
 
 
 def is_finnish_learning(title, description):
@@ -44,6 +78,10 @@ def exclusion_reason(title, description, source_categories, config):
         return "workshops"
     if preferences.get("exclude_games") and GAMES.search(title):
         return "bingo, quizzes or karaoke"
+    if preferences.get("theatre_languages") and (
+            tags.intersection({"theatre", "theater"}) or THEATRE.search(title)):
+        if not has_allowed_theatre_language(title, description, preferences["theatre_languages"]):
+            return "theatre without confirmed allowed performance language"
     return None
 
 

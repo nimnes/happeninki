@@ -16,6 +16,7 @@ exclude_courses = true
 allow_finnish_learning = true
 exclude_workshops = true
 exclude_games = true  # Bingo, pub quizzes and karaoke.
+theatre_languages = ["en", "ru"]  # Require explicit performance language; [] allows any language.
 # Additional exact source category names, e.g. "dance" or "comedy".
 excluded_source_categories = []
 # Additional words/phrases to exclude from event titles, case-insensitive.
