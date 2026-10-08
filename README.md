@@ -8,22 +8,30 @@ to follow several Finnish event calendars.
 
 It covers **Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä**, with a focus
 on concerts, exhibitions, festivals, food campaigns and other cultural events.
+The Russian channel also includes Art Master events in **Jyväskylä and Helsinki**.
 The area and categories can be extended as the project grows.
 
 By default, it skips children's activities, book clubs and reading sessions
 (including reading to dogs), general courses, workshops, bingo, pub quizzes and
 karaoke. Finnish-language learning is an exception to the course filter.
+Theatre plays are included only when their performance language is English or
+Russian; unknown languages are excluded. Art Master's calendar is treated as
+Russian-language by default.
 
 ## How it works
 
 Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
 new listings, translates them and publishes a separate post for each event.
-Each post includes a short description, dates, location, price when available,
-and a link to the original listing.
+Each post includes a short description, compact dates and times, a clickable
+Google Maps address, and a link to the original listing. Dates and location appear
+in separate blocks. Postal codes and repeated city names are removed; paid prices
+and price ranges are shown, while zero-euro prices are hidden.
+
 When an event has a cover image, new posts include it above the description.
-Long descriptions are shortened to fit a photo caption; dates, location and links
-are kept. If the image is unavailable or the details cannot fit, the bot posts text.
-Zero-euro prices are hidden. Existing text posts continue to be updated as text.
+Long summaries are shortened to fit a photo caption, keeping dates, location and
+links. If Telegram cannot load the image or the details cannot fit, the bot posts
+text. Existing text posts continue to be updated as text; photo posts are updated
+in place.
 
 Russian and English channels are independently optional: run either one or both.
 The bot remembers what it has posted in each channel and can update existing
@@ -31,12 +39,19 @@ messages when an event changes or the source reports a cancellation.
 
 On the first launch, it queues events happening within the **next month**, including
 exhibitions already open. After that, it looks for newly discovered events up to
-six months ahead (180 days). Large backlogs are published in batches, so the first launch may
-need several runs.
+six months ahead (180 days). Listings already known beyond the initial month are
+saved without posting; use `requeue_upcoming` if you want to include those too.
+Large backlogs are published in batches, so the first launch may need several runs.
 
-Events come from the [Tampere event calendar](https://tapahtumat.tampere.fi),
-[SYÖ!-viikot](https://syoviikot.fi), and the [Art Master calendar](https://ru.art-master.fi/afisha)
-(Russian channel). Coverage depends on what organizers list there.
+| Source | Coverage | Channels |
+| --- | --- | --- |
+| [Tampere event calendar](https://tapahtumat.tampere.fi) | Tampere and the configured surrounding municipalities | Russian and English |
+| [SYÖ!-viikot](https://syoviikot.fi) | Restaurant campaigns in the configured municipalities | Russian and English |
+| [Art Master](https://ru.art-master.fi/afisha) | Tampere area, Jyväskylä and Helsinki | Russian only |
+
+Coverage depends on what organizers list in these sources. Art Master's extra
+cities do not expand the Tampere calendar scan. Children's shows remain excluded,
+and touring shows without a published street address link to their city instead.
 The SYÖ! connection is included, but still needs verification with a published
 campaign when the next one becomes available.
 
@@ -56,6 +71,10 @@ There is no always-running server or separate database service to host. Modest
 usage can fit within GitHub and Ollama's free allowances, though translation
 capacity depends on the model and your account. If the allowance runs out,
 unpublished events stay queued for a later run.
+
+Telegram posts are paced to avoid rate limits. If Telegram requests a cooldown,
+the bot waits and retries when there is enough time left; otherwise, it saves
+progress and leaves the remaining events for a later run. No state reset is needed.
 
 ## Set up your own
 
@@ -101,8 +120,10 @@ Run the workflow again with `mode=publish` and `initialize=true` for the first
 launch. After that, leave `initialize` off. Daily runs will publish automatically;
 you can also run the workflow manually to continue a backlog.
 
-Each run handles up to 100 events, subject to its time budget and available
-translation allowance. Check the Actions results to see whether a run succeeded.
+Each run handles up to 100 events across the enabled channels, subject to an
+18-minute bot time budget and available translation allowance. Check the Actions
+results to see whether a run succeeded. To continue a backlog, run `mode=publish`
+again with the initialization, reset and requeue options left off.
 
 ### Reset or include more upcoming events
 
@@ -114,23 +135,10 @@ The manual workflow also offers:
 | `requeue_upcoming` | Queues currently listed upcoming events up to six months ahead, including those skipped by the initial month window. Preserves successful posts. |
 
 Enable both to start fresh and queue all collected upcoming events within that
-six-month window. Use `mode=preview` to inspect the effect first. On subsequent runs, leave
-both options off so the bot resumes its queue instead of resetting it again.
+six-month window. Use `mode=preview` to inspect the effect first. On subsequent
+runs, leave both options off so the bot resumes its queue instead of resetting it again.
 
 ## Make it yours
-
-The [Art Master calendar](https://ru.art-master.fi/afisha) is also scanned for the
-Russian channel only. Its source settings include Jyväskylä and Helsinki alongside
-the Tampere area; these extra cities do not expand the Tampere calendar scan.
-Children's events remain excluded. Dates, tickets and cover images are taken from
-individual calendar entries when available. Touring events without a published
-street address link to their city instead.
-
-`[sources.art_master]` controls its cities and channel languages. The source is
-configured to treat its theatre performances as Russian-language productions;
-this is a source-level assumption, not language metadata verified for each show.
-Set `performance_languages = []` to require an explicit performance-language
-statement per listing, or `enabled = false` to disable this source.
 
 [config.toml](config.toml) controls the municipalities, event categories, filters,
 model and publishing limits. The daily posting time is set in the
@@ -164,6 +172,13 @@ in English", "esityskieli: venäjä", or "спектакль на русском
 are excluded. Translated listings, titles, or subtitles alone do not establish the
 performance language. Use `["en"]` or `["ru"]` to allow just one language, or `[]`
 to include theatre in any language.
+
+Each source can be disabled with `enabled = false`. Art Master's
+`[sources.art_master]` section has its own `municipalities` and
+`delivery_languages`, so its coverage and channel selection can be changed
+independently. Its `performance_languages = ["ru"]` setting is a source-level
+assumption, not language metadata verified for each show. Set it to `[]` to
+require an explicit performance-language statement per listing.
 
 New preferences apply to previously queued events too, without resetting history.
 They do not delete messages already posted to Telegram. These are category and
