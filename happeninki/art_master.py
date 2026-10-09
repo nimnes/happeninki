@@ -97,7 +97,8 @@ def parse_art_master(document, url, config):
                   price="0 €" if "вход свободный" in description.casefold() else "", ticket_url=tickets,
                   image_url=safe_url(urljoin(url, image[1])) if image else "", source_categories=tags,
                   delivery_languages=settings["delivery_languages"], performance_languages=settings["performance_languages"])
-    return None if event_exclusion_reason(event, config) else event
+    return None if (event.source_key not in config.get('_published_source_keys', ())
+                    and event_exclusion_reason(event, config)) else event
 
 
 class ArtMasterSource:

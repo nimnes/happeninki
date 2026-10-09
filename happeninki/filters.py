@@ -1,7 +1,7 @@
 """Personal event preferences, applied before translation and publication."""
 import re
 
-from .models import plain_text
+from .models import plain_text, normalized
 
 CHILDREN = re.compile(r"\b(lasten\w*|lapsille|lapsiperhe\w*|vauva\w*|taapero\w*|satutuokio\w*|children(?:'s)?|kids|toddlers?|babies)\b", re.I)
 CHILD_AUDIENCE = re.compile(r"(?:suunnattu|tarkoitettu|sopii|suunniteltu)\s+(?:\w+\s+){0,3}(?:lapsille|lapsiperheille)|(?:for|aimed at)\s+(?:young\s+)?(?:children|kids|toddlers)", re.I)
@@ -19,7 +19,7 @@ WORKSHOPS = re.compile(r"\b(\w*työpaja\w*|\w*askartelu\w*|workshops?|craft\s+(?
 GAMES = re.compile(r"\b(\w*bingo\w*|pub\s*quiz\w*|pubivisa\w*|tietovisa\w*|karaoke\w*)\b", re.I)
 CHILD_SHOW = re.compile(r"\b(?:koko\s+perhe(?:elle|en)|lasten\s+(?:konsertti\w*|esitys\w*|teatteri\w*|musikaali\w*)|"
                         r"(?:show|concert|performance)\s+for\s+(?:the\s+whole\s+family|children))\b", re.I)
-THEATRE = re.compile(r"\b(\w*näytelmä\w*|teatteriesitys\w*|stage\s+play|theatr(?:e|ical)\s+(?:play|performance))\b", re.I)
+THEATRE = re.compile(r"\b(\w*näytelmä\w*|teatteriesitys\w*|musikaali(?:n|a|ssa|sta|in|lla|lle|t|en|komedia\w*|esitys\w*)?|musical\s+(?:theatre|theater|comedy)|stage\s+play|theatr(?:e|ical)\s+(?:play|performance))\b", re.I)
 # Check the whole listing for explicit event formats; source tags are often incomplete.
 STANDUP = re.compile(r"\b(?:stand[ -]?up|standupkomi\w*|стендап\w*)\b", re.I)
 LECTURES = re.compile(r"\b(?:\w*luento\w*|lectures?|лекци\w*)\b", re.I)
@@ -45,6 +45,19 @@ def is_church_music(title, description, tags, venue):
     return bool(CHURCH_VENUE.search(name) and
                 (CHURCH_MUSIC.search(title + ". " + description) or
                  any(CHURCH_MUSIC.search(tag) for tag in tags)))
+
+
+def venue_matches(venue, names):
+    name = normalized(plain_text(venue).split(",", 1)[0])
+    for candidate in names:
+        identity = normalized(candidate)
+        if identity == "tullikamari":
+            identity = r"tullikamari(?:n)?"
+        else:
+            identity = re.escape(identity)
+        if re.search(r"(?<!\w)" + identity + r"(?!\w)", name):
+            return True
+    return False
 
 
 def child_age_recommendation(text):
@@ -100,7 +113,7 @@ def exclusion_reason(title, description, source_categories, config, performance_
     tags = {tag.casefold() for tag in source_categories}
     text = title + ". " + description
     if preferences.get("exclude_nightclubs") and any(
-            name.casefold() in venue.casefold() for name in preferences.get("nightclub_venues", [])):
+            venue_matches(venue, [name]) for name in preferences.get("nightclub_venues", [])):
         return "nightclub venue"
     if preferences.get("exclude_standup") and (tags.intersection({"standup", "stand-up", "stand up"}) or STANDUP.search(text)):
         return "standup"
@@ -119,7 +132,8 @@ def exclusion_reason(title, description, source_categories, config, performance_
     if tags.intersection(tag.casefold() for tag in preferences.get("excluded_source_categories", [])):
         return "custom source category"
     if preferences.get("exclude_children") and (
-            "kids and family" in tags or CHILDREN.search(title) or CHILD_AUDIENCE.search(description)
+            "kids and family" in tags or CHILDREN.search(title) or re.search(r"\bkoululai\w*", title, re.I)
+            or re.search(r"\blast(?:en|e[nm])\s+elokuv\w*", description, re.I) or CHILD_AUDIENCE.search(description)
             or CHILD_SHOW.search(text) or child_age_recommendation(text)
             or (CHILD_PROJECT.search(description) and CHILD_PARTICIPATION.search(description))):
         return "children's activities"
@@ -143,7 +157,7 @@ def exclusion_reason(title, description, source_categories, config, performance_
         artists = preferences.get("music_artists", [])
         venues = preferences.get("music_venues", [])
         if not (any(re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.I) for artist in artists)
-                or any(name.casefold() in venue.casefold() for name in venues)
+                or venue_matches(venue, venues)
                 or (preferences.get("allow_church_music") and is_church_music(title, description, tags, venue))):
             return "music outside curated artists or venues"
     return None

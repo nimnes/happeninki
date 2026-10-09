@@ -50,4 +50,18 @@ def load_config(path="config.toml"):
         raise ValueError("Tampere window_days must be between 1 and 60.")
     if os.getenv("OLLAMA_MODEL"):
         config["ollama"]["model"] = os.environ["OLLAMA_MODEL"]
+    selection = config.setdefault('selection', {})
+    if not isinstance(selection, dict):
+        raise ValueError('selection must be a table')
+    for key, value in {'enabled': False, 'daily_limit': 5, 'lead_days': 30,
+                       'reconsider_days': 3, 'classifier_mode': 'off', 'classification_budget': 5}.items():
+        selection.setdefault(key, value)
+    if not isinstance(selection.get('enabled', False), bool):
+        raise ValueError('selection.enabled must be true or false')
+    if selection.get('classifier_mode', 'off') not in {'off', 'shadow'}:
+        raise ValueError('selection.classifier_mode must be off or shadow')
+    for key in ('daily_limit', 'lead_days', 'reconsider_days', 'classification_budget'):
+        value = selection.get(key, 1)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f'selection.{key} must be a positive integer')
     return config

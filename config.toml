@@ -73,3 +73,13 @@ delivery_languages = ["ru"]
 # Treat this Russian theatre's calendar as Russian-language performances.
 # Set [] to require explicit language statements on each event instead.
 performance_languages = ["ru"]
+
+# Scores are editorial priorities, not probabilities. Model findings remain
+# advisory until the comparison report has been evaluated on labeled examples.
+[selection]
+enabled = true
+daily_limit = 5
+lead_days = 30
+reconsider_days = 3
+classifier_mode = "shadow"
+classification_budget = 5

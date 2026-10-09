@@ -41,9 +41,10 @@ def parse_tampere(page, municipality, config):
     title = plain_text(page.get("name"))
     description = plain_text(page.get("descriptionLong") or page.get("descriptionShort"))
     source_categories = page.get("globalContentCategories", [])
-    if not title or exclusion_reason(title, description, source_categories, config, venue=plain_text((page.get("locations") or [{}])[0].get("address"))):
+    published = 'tampere:' + str(page.get('_id')) in config.get('_published_source_keys', ())
+    if not title or (not published and exclusion_reason(title, description, source_categories, config, venue=plain_text((page.get("locations") or [{}])[0].get("address")))):
         return None
-    category = category_for(page, config)
+    category = category_for(page, config) or ('culture' if published else None)
     if not category:
         return None
     timezone = ZoneInfo(config["timezone"])

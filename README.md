@@ -24,7 +24,8 @@ when the source labels them only as exhibitions.
 ## How it works
 
 Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
-new listings, translates them and publishes a separate post for each event.
+new listings, ranks eligible events and publishes at most **five new posts per
+channel per Helsinki day**. Each selected event receives a separate translated post.
 Each post includes a short description, compact dates and times, a clickable
 Google Maps address, and a link to the original listing. Dates and location appear
 in separate blocks. Postal codes and repeated city names are removed; paid prices
@@ -43,8 +44,11 @@ messages when an event changes or the source reports a cancellation.
 On the first launch, it queues events happening within the **next month**, including
 exhibitions already open. After that, it looks for newly discovered events up to
 six months ahead (180 days). Listings already known beyond the initial month are
-saved without posting; use `requeue_upcoming` if you want to include those too.
-Large backlogs are published in batches, so the first launch may need several runs.
+saved and become eligible when they enter the 30-day publication window.
+Daily slots are shared by scheduled and manual runs. Unselected listings are
+reconsidered for three days, then skipped until their details or preferences change.
+This avoids gradually publishing the entire backlog. Edits and cancellations
+to previously published posts do not use new-post slots.
 
 | Source | Coverage | Channels |
 | --- | --- | --- |
@@ -57,6 +61,50 @@ cities do not expand the Tampere calendar scan. Children's shows remain excluded
 and touring shows without a published street address link to their city instead.
 The SYÖ! connection is included, but still needs verification with a published
 campaign when the next one becomes available.
+
+## Event selection and comparison
+
+The approved music venues, favourite-artist list and church classical/choir/jazz
+exception still determine music eligibility. Ranking then favors stated church
+music preferences, approved programme contexts, complete location information
+and useful lead time. Its points express ordering, not popularity or probabilities.
+There is no internet popularity lookup and no minimum-score gate in this first
+version; these require evaluation before changing the approved eligibility rules.
+Duplicate listings with the same normalized title, city, venue and occurrence
+starts compete for one post, even when their advertised end times differ.
+
+The `[selection]` settings control the five-post limit, 30-day notice window,
+three-day reconsideration period and advisory classifier. `enabled = false`
+restores the original queue behavior; `classifier_mode = "off"` disables only
+model classification. Classification uses the configured Ollama model and key,
+with at most five candidate classifications per run. It extracts audience, format
+and actual performance language, requires source quotes, and caches results by
+source content, model and prompt version. Unknown fields stay unknown. A failed
+classifier stops further classification for that run and leaves rule-based
+publication unchanged. Model decisions are **comparison only** until evaluated.
+
+For a read-only comparison without posting:
+
+```sh
+python -m happeninki --mode preview --classify --output data/preview.json
+```
+
+Ordinary previews work without model access. `--classify` explicitly enables
+model calls for preview; translations remain a separate `--translate` option.
+The workflow offers `classify_preview` and saves comparison JSON as an artifact.
+Preview includes scores, reasons, proposed languages, deferred languages and
+model findings. A publish run also saves `data/selection.json` for inspection.
+Without configured channels, preview assumes empty demonstration channel quotas;
+restore release state and configure the real channels to see their remaining slots.
+
+Classification and editorial records are stored separately from message and
+translation fingerprints, so advisory score changes do not edit Telegram posts.
+Existing databases gain additive tables without losing publication receipts.
+Posting slots are saved before sending: uncertain transport failures retain their
+slot conservatively, and a confirmed rate-limit refusal can release it. Resetting
+event history preserves the daily ledger. The ledger starts with this version;
+older receipts contain no posting dates and cannot reconstruct earlier daily usage.
+Production scheduling is serialized by the existing workflow concurrency group.
 
 ## A small bot without a server
 

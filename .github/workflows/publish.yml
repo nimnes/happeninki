@@ -19,6 +19,10 @@ on:
         description: "Use Ollama to translate the first 10 preview events"
         type: boolean
         default: false
+      classify_preview:
+        description: "Use Ollama for advisory event classification"
+        type: boolean
+        default: false
       reset_state:
         description: "Clear history and repeat first launch (may duplicate posts)"
         type: boolean
@@ -59,12 +63,14 @@ jobs:
           REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
           INITIALIZE: ${{ inputs.initialize || false }}
           TRANSLATE_PREVIEW: ${{ inputs.translate_preview || false }}
+          CLASSIFY_PREVIEW: ${{ inputs.classify_preview || false }}
           RESET_STATE: ${{ inputs.reset_state || false }}
           REQUEUE_UPCOMING: ${{ inputs.requeue_upcoming || false }}
         run: |
           args=(--mode "$REQUESTED_MODE" --release-state)
           if [ "$INITIALIZE" = "true" ]; then args+=(--initialize); fi
           if [ "$TRANSLATE_PREVIEW" = "true" ]; then args+=(--translate); fi
+          if [ "$CLASSIFY_PREVIEW" = "true" ]; then args+=(--classify); fi
           if [ "$RESET_STATE" = "true" ]; then args+=(--reset-state); fi
           if [ "$REQUEUE_UPCOMING" = "true" ]; then args+=(--requeue-upcoming); fi
           python -m happeninki "${args[@]}"
@@ -75,6 +81,7 @@ jobs:
           name: run-output-${{ github.run_id }}
           path: |
             data/preview.json
+            data/selection.json
             data/events.db
           if-no-files-found: ignore
           retention-days: 7

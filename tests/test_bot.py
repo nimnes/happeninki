@@ -9,6 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from happeninki.__main__ import publish_pending, run
 from happeninki.config import load_config as load_production_config
@@ -225,7 +226,11 @@ class StateTests(unittest.TestCase):
             reset_state=True, requeue_upcoming=True, limit=10, output=str(output))
         with patch.dict("os.environ", {"TELEGRAM_CHANNEL_RU": "ru", "TELEGRAM_CHANNEL_EN": "en"}):
             self.assertEqual(run(args), 0)
-        self.assertEqual(json.loads(output.read_text())["pending_events"], 2)
+        preview = json.loads(output.read_text())
+        self.assertEqual(preview["pending_events"], 1)
+        far_decision = next(value for value in preview['selection_report']['decisions'].values()
+                            if value['source_key'] == 'test:2')
+        self.assertEqual(far_decision['status'], 'scheduled')
         self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["en"])
         self.assertEqual(len(self.store.pending(TODAY, ["ru", "en"], HASHES)), 1)
 
@@ -331,7 +336,9 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Upload failed"):
             publish_pending(self.store, self.config, self.translator, self.telegram,
                             TODAY, checkpoint, time.monotonic() + 10)
-        self.assertEqual(self.telegram.calls, [("ru", None)])
+        self.assertEqual(self.telegram.calls, [])
+        actual_day = datetime.now(ZoneInfo(self.config['timezone'])).date()
+        self.assertEqual(self.store.quota_used(actual_day, HASHES["ru"]), 1)
 
     def test_quota_failure_leaves_both_languages_pending(self):
         self.ingest([event()])

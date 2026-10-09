@@ -32,6 +32,13 @@ class Store:
                 message_id INTEGER NOT NULL, fingerprint TEXT NOT NULL,
                 PRIMARY KEY(event_id, language, channel_hash));
             CREATE TABLE IF NOT EXISTS suppressed_events(event_id TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS classifications(cache_key TEXT PRIMARY KEY, payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS editorial(
+                event_id TEXT NOT NULL, policy_key TEXT NOT NULL, first_considered TEXT NOT NULL,
+                status TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(event_id, policy_key));
+            CREATE TABLE IF NOT EXISTS daily_posts(
+                id TEXT PRIMARY KEY, day TEXT NOT NULL, channel_hash TEXT NOT NULL,
+                event_id TEXT NOT NULL, status TEXT NOT NULL);
         """)
         version = self.get_meta("schema_version")
         if "message_kind" not in {row[1] for row in self.connection.execute("PRAGMA table_info(publications)")}:
@@ -127,22 +134,26 @@ class Store:
                 self.connection.execute("INSERT INTO metadata VALUES('initialized',?)", (today.isoformat(),))
                 self.connection.execute("INSERT INTO metadata VALUES('initial_window_end',?)", (initial_end.isoformat(),))
 
-    def pending(self, today, languages, channel_hashes, now=None):
+    def pending(self, today, languages, channel_hashes, now=None, include_updates=False):
         result = []
-        for row in self.connection.execute("""SELECT * FROM events WHERE eligible=1
-                AND id NOT IN (SELECT event_id FROM suppressed_events)"""):
+        for row in self.connection.execute("SELECT * FROM events WHERE eligible=1"):
             event = Event(**json.loads(row["payload"]))
-            if not event.active_on(today):
+            cancellation_update = include_updates and event.cancelled and any(
+                self.publication(row['id'], language, channel_hashes[language]) for language in languages)
+            if not event.active_on(today) and not cancellation_update:
                 continue
             if now is not None and not event.date_only and "T" in event.end:
                 finish = datetime.fromisoformat(event.end)
-                if finish.tzinfo is not None and finish <= now:
+                if finish.tzinfo is not None and finish <= now and not cancellation_update:
                     continue
             pending = []
             for language in languages:
                 if event.delivery_languages and language not in event.delivery_languages:
                     continue
                 publication = self.publication(row["id"], language, channel_hashes[language])
+                suppressed = self.connection.execute("SELECT 1 FROM suppressed_events WHERE event_id=?", (row['id'],)).fetchone()
+                if suppressed and not (include_updates and publication):
+                    continue
                 if publication is None and event.cancelled:
                     continue
                 if publication is None or publication["fingerprint"] != event.fingerprint:
@@ -173,6 +184,54 @@ class Store:
     def snapshot(self, target):
         with sqlite3.connect(target) as destination:
             self.connection.backup(destination)
+
+    def classification(self, key):
+        row = self.connection.execute('SELECT payload FROM classifications WHERE cache_key=?', (key,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def cache_classification(self, key, result):
+        with self.connection:
+            self.connection.execute('INSERT OR REPLACE INTO classifications VALUES(?,?)', (key, json.dumps(result)))
+
+    def editorial(self, event_id, key, today):
+        with self.connection:
+            self.connection.execute('INSERT OR IGNORE INTO editorial VALUES(?,?,?,?,?)',
+                                    (event_id, key, today.isoformat(), 'candidate', '{}'))
+        return self.connection.execute('SELECT * FROM editorial WHERE event_id=? AND policy_key=?', (event_id, key)).fetchone()
+
+    def record_editorial(self, event_id, key, status, payload):
+        with self.connection:
+            self.connection.execute('UPDATE editorial SET status=?, payload=? WHERE event_id=? AND policy_key=?',
+                                    (status, json.dumps(payload), event_id, key))
+
+    def quota_used(self, day, channel):
+        return self.connection.execute('SELECT count(*) FROM daily_posts WHERE day=? AND channel_hash=? AND status != ?',
+                                       (str(day), channel, 'released')).fetchone()[0]
+
+    def reserve_post(self, day, channel, event_id, limit):
+        # Acquire the SQLite write lock before checking; simultaneous local runs
+        # cannot both consume the final slot. Remote runs use workflow concurrency.
+        with self.connection:
+            self.connection.execute('BEGIN IMMEDIATE')
+            if self.quota_used(day, channel) >= limit:
+                return None
+            reservation = str(uuid.uuid4())
+            self.connection.execute('INSERT INTO daily_posts VALUES(?,?,?,?,?)',
+                                    (reservation, str(day), channel, event_id, 'reserved'))
+        return reservation
+
+    def finish_reservation(self, reservation, status):
+        with self.connection:
+            self.connection.execute('UPDATE daily_posts SET status=? WHERE id=?', (status, reservation))
+
+    def published_source_keys(self):
+        return {row[0] for row in self.connection.execute('SELECT source_key FROM aliases WHERE event_id IN (SELECT event_id FROM publications)')}
+
+    def published_performances(self, hashes):
+        from .selection import performance_key
+        return {(performance_key(Event(**json.loads(row['payload']))), row['channel_hash'])
+                for row in self.connection.execute('SELECT e.payload, p.channel_hash FROM events e JOIN publications p ON e.id=p.event_id')
+                if row['channel_hash'] in hashes.values()}
 
 
 def validate_database(path):
