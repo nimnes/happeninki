@@ -30,6 +30,23 @@ CHILD_AGE = re.compile(r"\b(?:suositusikä|ikä(?:suositus|raja)?|recommended\s+
                        r"(?:\s*[- ]?vuotia\w*|\s*years?\w*|\s*\+)?", re.I)
 
 
+CHURCH_VENUE = re.compile(
+    r"\b(?:\w*kirkko|\w*kirkon|church|cathedral|chapel|kappeli|\w*kapell|kyrka|kyrkan)\b", re.I)
+CHURCH_MUSIC = re.compile(
+    r"\b(?:klassinen|klassisen|klassista|klassisesta|klassiseen|classical|barokki\w*|baroque|"
+    r"kamarimusi\w*|chamber\s+music|urkumusi\w*|urku(?:konsert\w*|resitaali\w*)|organ\s+(?:music|recital|concert)|"
+    r"\w*kuoro\w*|choirs?|choral|\w*jazz\w*|джаз\w*|хор|хоров\w*|классическ\w*)\b", re.I)
+
+
+def is_church_music(title, description, tags, venue):
+    # Match the venue name, not a street such as Kirkkokatu or a church mentioned
+    # in an artist biography. Address fields conventionally start with the venue.
+    name = plain_text(venue).split(",", 1)[0]
+    return bool(CHURCH_VENUE.search(name) and
+                (CHURCH_MUSIC.search(title + ". " + description) or
+                 any(CHURCH_MUSIC.search(tag) for tag in tags)))
+
+
 def child_age_recommendation(text):
     return any(int(match[1]) < 13 and (not match[2] or int(match[2]) < 13)
                for match in CHILD_AGE.finditer(text))
@@ -126,7 +143,8 @@ def exclusion_reason(title, description, source_categories, config, performance_
         artists = preferences.get("music_artists", [])
         venues = preferences.get("music_venues", [])
         if not (any(re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.I) for artist in artists)
-                or any(name.casefold() in venue.casefold() for name in venues)):
+                or any(name.casefold() in venue.casefold() for name in venues)
+                or (preferences.get("allow_church_music") and is_church_music(title, description, tags, venue))):
             return "music outside curated artists or venues"
     return None
 

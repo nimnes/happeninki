@@ -25,6 +25,8 @@ nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 music_selection = "curated"
 music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
 music_artists = []
+# Also admit classical, choir and jazz concerts at church venues.
+allow_church_music = true
 theatre_languages = ["en", "ru"]  # Require explicit performance language; [] allows any language.
 # Additional exact source category names, e.g. "dance" or "comedy".
 excluded_source_categories = []

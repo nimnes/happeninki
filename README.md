@@ -164,6 +164,7 @@ nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 music_selection = "curated"
 music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
 music_artists = []
+allow_church_music = true
 theatre_languages = ["en", "ru"]
 excluded_source_categories = []
 exclude_title_keywords = []
@@ -181,7 +182,14 @@ names an artist in `music_artists`. The venue list includes Nokia Arena,
 Tampere-talo, Tampereen Jäähalli, Tavara-asema, Tullikamari and G Livelab.
 Venue is a proxy for a curated concert programme, not proof that an artist is popular; favourite artists can be added
 without depending on their venue. Set `music_selection = "all"` to remove this
-restriction. Nightclub, children, lecture and other exclusions still take priority.
+restriction. With `allow_church_music = true`, classical, choir and jazz music
+at church venues is also included, based on the venue name and genre wording in
+the title, description or source categories. Finnish terms such as “kirkko”,
+“klassinen”, “kuoro” and “jazz” are recognized, along with English equivalents.
+Organ recitals and chamber music also count as classical music. Other genres
+at churches still need a listed venue or favourite artist. Set the option to
+`false` to disable this exception. Nightclub, children, lecture and other exclusions
+still take priority.
 `nightclub_venues` excludes known nightclub locations even without nightlife
 wording. A concert venue having “Klubi” in its name does not alone make it a
 nightclub. Age recommendations under 13 also identify children’s listings.

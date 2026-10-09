@@ -8,7 +8,7 @@ from pathlib import Path
 
 from happeninki.__main__ import publish_pending
 from happeninki.config import load_config
-from happeninki.filters import exclusion_reason
+from happeninki.filters import event_exclusion_reason, exclusion_reason
 from happeninki.models import Event, next_month
 from happeninki.sources import parse_tampere
 from happeninki.store import Store
@@ -105,6 +105,50 @@ class PreferenceTests(unittest.TestCase):
                                               venue="Fame Club"))
         self.assertIsNone(parse_tampere(self.page("Local performer", ["consert"]),
                                        "Tampere", self.config))
+
+    def test_church_music_exception_in_source_and_queue(self):
+        config = load_config()
+        for title, description, venue in (
+                ("Klassisen musiikin konsertti", "", "Aleksanterin kirkko, Pirkankatu"),
+                ("Tampereen kamarikuoro", "", "Tampereen Tuomiokirkko, Tuomiokirkonkatu 3"),
+                ("Jazzilta", "", "Kalevan kirkko, Liisanpuisto 1"),
+                ("Concert", "Classical music", "St John's Church, Main Street 1"),
+                ("Concert", "A choir performs", "Cathedral, Main Street 1"),
+                ("Concert", "Jazz trio", "Messukylän kirkko, Messukylänkatu 54"),
+                ("Urkukonsertti", "", "Nokian kirkko, Pirkkalaistie 22")):
+            with self.subTest(title=title, venue=venue):
+                page = self.page(title, ["music"], description)
+                page["locations"] = [{"address": venue}]
+                self.assertIsNotNone(parse_tampere(page, "Tampere", config))
+                # Legacy queue entries need not have source tags.
+                self.assertIsNone(event_exclusion_reason(
+                    event(title=title, description=description, address=venue), config))
+        self.assertIsNone(exclusion_reason("Concert", "", ["music", "jazz"], config,
+                                          venue="Kalevan kirkko"))
+
+    def test_church_exception_requires_both_genre_and_church_venue(self):
+        config = load_config()
+        for title, description, venue in (
+                ("Rock concert", "", "Kalevan kirkko"),
+                ("Concert", "", "Kalevan kirkko"),
+                ("Jazz trio", "", "Local bar, Kirkkokatu 3"),
+                ("Classical concert", "Previously performed at a church", "Local hall"),
+                ("Jazz trio", "", "Kirkkokatu 3")):
+            with self.subTest(title=title, venue=venue):
+                self.assertIsNotNone(exclusion_reason(title, description, ["music"], config,
+                                                      venue=venue))
+        config["filters"]["allow_church_music"] = False
+        self.assertIsNotNone(exclusion_reason("Choir concert", "", ["music"], config,
+                                              venue="Kalevan kirkko"))
+
+    def test_church_music_does_not_override_other_exclusions(self):
+        config = load_config()
+        for title, description in (("Lasten kuorokonsertti", ""),
+                                   ("Luentokonsertti", "Classical music"),
+                                   ("Choir workshop", "")):
+            with self.subTest(title=title):
+                self.assertIsNotNone(exclusion_reason(title, description, ["music"], config,
+                                                      venue="Kalevan kirkko"))
 
     def test_reading_activities_and_dogs(self):
         for title in ("Lukupiiri", "Lukukoiralle lukeminen", "Lue koiralle", "Kirjakerho",
