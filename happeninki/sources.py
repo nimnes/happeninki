@@ -41,7 +41,7 @@ def parse_tampere(page, municipality, config):
     title = plain_text(page.get("name"))
     description = plain_text(page.get("descriptionLong") or page.get("descriptionShort"))
     source_categories = page.get("globalContentCategories", [])
-    if not title or exclusion_reason(title, description, source_categories, config):
+    if not title or exclusion_reason(title, description, source_categories, config, venue=plain_text((page.get("locations") or [{}])[0].get("address"))):
         return None
     category = category_for(page, config)
     if not category:

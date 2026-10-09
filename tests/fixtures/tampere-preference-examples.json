@@ -1,0 +1,206 @@
+[
+  {
+    "_id": "6aaf93fbbcbc58000766a858",
+    "defaultStartDate": "2026-10-18T11:00:00.000Z",
+    "defaultEndDate": "2026-11-14T13:00:00.000Z",
+    "pageType": "event",
+    "locations": [
+      {
+        "lat": 61.4988264,
+        "lng": 23.762119,
+        "address": "Kulttuuritalo Laikku, Musiikkisali, Keskustori 4, 33100 Tampere",
+        "country": "FI",
+        "page_id": "650153b56822bf5d87f6d10b",
+        "alt": {
+          "fi": {
+            "address": "Kulttuuritalo Laikku, Musiikkisali, Keskustori 4, 33100 Tampere"
+          }
+        },
+        "location_id": "location-1789890707621-700"
+      }
+    ],
+    "globalContentCategories": [
+      "consert"
+    ],
+    "event": {
+      "datesType": "individual-dates",
+      "urlPurchaseTicket": "https://www.eliisateatteri.fi/liput/",
+      "callToActionsPublishingDateDefined": false,
+      "marketingAreaType": "none-area",
+      "dates": [
+        {
+          "start": "2026-10-18T11:00:00.000Z",
+          "end": "2026-10-18T12:00:00.000Z",
+          "isSoldOut": false
+        },
+        {
+          "start": "2026-11-14T12:00:00.000Z",
+          "end": "2026-11-14T13:00:00.000Z",
+          "isSoldOut": false
+        }
+      ],
+      "start": "2026-10-18T11:00:00.000Z",
+      "end": "2026-11-14T13:00:00.000Z",
+      "maxParticipants": null,
+      "minParticipants": null,
+      "urlSignUp": "",
+      "isBoosting": false
+    },
+    "name": "Eliisa-teatteri: Augusta Tammerkosken runoilijatar - Augusta Lundahlin elämä sanoin ja sävelin",
+    "descriptionShort": "Tarinallinen konsertti kertoo Tampereen ensimmäisen runoilijan Augusta Lundahlin elämästä.",
+    "descriptionLong": "<p>Tarinallinen konsertti kertoo Tampereen ensimmäisen runoilijan Augusta Lundahlin elämästä. Esityksessä kuullaan monia Augustan runoja sekä suomeksi että ruotsiksi. Kahteen niistä Rauno Arvola on tehnyt sävellyksen. Muukin työryhmän valitsema musiikki tukee tarinaa ja kuljettaa sitä eteenpäin.</p><p><br /></p><p>Käsikirjoitus, ohjaus, puvustus ja kertoja: Merja Kurkinen</p><p>Laulajat: Sirpa Järnberg, Marja-Terttu Paloniemi, Rauno Arvola, Juha-Matti Heimonen</p><p>Lausuja: Tea Lehmuskoski</p><p>Pianisti: Juhana Mattila</p><p><br /></p><p>Liput 20 € https://www.eliisateatteri.fi/liput/ tai ovelta käteisellä </p><p><br /></p><p><br /></p>"
+  },
+  {
+    "_id": "6a689707bc3a93000704d837",
+    "defaultStartDate": "2026-10-19T10:00:00.000Z",
+    "defaultEndDate": "2026-10-19T11:00:00.000Z",
+    "pageType": "event",
+    "locations": [
+      {
+        "lat": 61.49586189999999,
+        "lng": 23.8115423,
+        "address": "Kalevan Kulma, Väinämöisenkatu 25, 33540 Tampere",
+        "country": "FI",
+        "alt": {
+          "fi": {
+            "address": "Kalevan Kulma, Väinämöisenkatu 25, 33540 Tampere"
+          }
+        },
+        "location_id": "location-1785235654930-314"
+      }
+    ],
+    "globalContentCategories": [
+      "consert"
+    ],
+    "event": {
+      "datesType": "individual-dates",
+      "callToActionsPublishingDateDefined": false,
+      "marketingAreaType": "none-area",
+      "dates": [
+        {
+          "start": "2026-10-19T10:00:00.000Z",
+          "end": "2026-10-19T11:00:00.000Z",
+          "isSoldOut": false
+        }
+      ],
+      "start": "2026-10-19T10:00:00.000Z",
+      "end": "2026-10-19T11:00:00.000Z",
+      "maxParticipants": null,
+      "minParticipants": null,
+      "urlPurchaseTicket": "",
+      "urlSignUp": "",
+      "isBoosting": false
+    },
+    "name": "Paula Kerola ja Riku Poramo: Tu! Lähretään lähiömatkalle",
+    "descriptionShort": "Musiikillinen esitys Tampereesta ja tamperelaisuudesta",
+    "descriptionLong": "<p>Tu! lähretään lähiömatkalle musiikillisessa ohjelmassa tutkaillaan ja ihmetellään Tamperetta ja tamperelaisuutta eisevväliä asenteella! Kerrotaan myös salaisesta Tampereesta, hys ny! Kerrotaan vain teille! Elävää musiikkia ja juonnettua hyvän mielen ohjelmaa luvassa! Paula Kerola ja Riku Poramo ottavat vastuun lähes kaikesta</p><p><br /></p><p>16.9. klo 13.30 Kaukaharjun lähitori, Keskisenkatu 13 -15, 33710 Tampere</p><p>5.10. klo 14.00 Mansikkapaikka, Lentävänniemi, Pikkusaarenkuja 2, 33410 Tampere</p><p>8.10. klo 13.00 Taatalakeskus, Sulkavuorenkatu 6, 33820 Tampere</p><p>19.10. klo 13.00 Kalevan Kulma, Iloa Arkeen pysäkit, Väinämöisenkatu 25, 33540 Tampere</p><p>27.10. klo 12.30 Tesoman lähitori, Tesomankatu 4, 33310 Tampere </p><p>5.11. klo 13.00 Pappilanpuiston lähitori, Kourutaltankatu 2, 33560 Tampere </p><p>16.11. klo 13.00 Lielahden lähitori, Antti Possin kuja 1, 33400 Tampere </p><p>PERUTTU! 1.12. klo 10.30 Monitoimitalo 13, Pellavatehtaankatu 4, 33100 Tampere </p><p><br /></p><p>Tilaisuudet ovat kaikille avoimia ja maksuttomia. Esityksen kesto n. 60 min. ​</p><p>Tapahtumassa noudatetaan turvallisemman tilan periaatteita.</p><p>Tila ei ole täysin esteetön. Lisätietoja esteettömyydestä täältä: <a href=\"https://koivupirtti.fi/kalevankulma/\" rel=\"noopener noreferrer\" target=\"_blank\">Iloa Arkeen -pysäkit - Koivupirtin säätiö sr</a></p><p>Muutokset mahdollisia.</p><p>Järj. Tampereen kaupunki, Kaupunkikulttuuriyksikkö</p>"
+  },
+  {
+    "_id": "6a74815ec6869c0007f1c993",
+    "defaultStartDate": "2026-09-29T14:00:00.000Z",
+    "defaultEndDate": "2026-12-01T17:00:00.000Z",
+    "pageType": "event",
+    "locations": [
+      {
+        "lat": 61.4981872,
+        "lng": 23.7506002,
+        "address": "Pääkirjasto Metso, Pirkankatu 2, 33210 Tampere",
+        "country": "FI",
+        "page_id": "64e5d3b47c46634d06106293",
+        "alt": {
+          "fi": {
+            "address": "Pääkirjasto Metso, Pirkankatu 2, 33210 Tampere"
+          }
+        },
+        "location_id": "location-1786019780132-434"
+      }
+    ],
+    "globalContentCategories": [
+      "consert"
+    ],
+    "event": {
+      "datesType": "individual-dates",
+      "callToActionsPublishingDateDefined": false,
+      "marketingAreaType": "none-area",
+      "dates": [
+        {
+          "start": "2026-10-20T14:00:00.000Z",
+          "end": "2026-10-20T16:00:00.000Z",
+          "isSoldOut": false,
+          "isCancelled": false
+        },
+        {
+          "start": "2026-11-10T15:00:00.000Z",
+          "end": "2026-11-10T17:00:00.000Z",
+          "isSoldOut": false,
+          "isCancelled": false
+        },
+        {
+          "start": "2026-12-01T15:00:00.000Z",
+          "end": "2026-12-01T17:00:00.000Z",
+          "isSoldOut": false,
+          "isCancelled": false
+        }
+      ],
+      "maxParticipants": null,
+      "minParticipants": null,
+      "urlPurchaseTicket": "",
+      "urlSignUp": "",
+      "isCancelled": false,
+      "start": "2026-09-29T14:00:00.000Z",
+      "end": "2026-12-01T17:00:00.000Z",
+      "isBoosting": false
+    },
+    "name": "Luentokonserttisarja: 540 vuotta kitaran historiaa",
+    "descriptionShort": "Kitaristi Janne Malinen johdattelee pääkirjasto Metson luentokonserttisarjassa kuulijat ikisuositun soittimen historian äärelle. Tutustumme eri aikakausien kitaroihin, säveltäjiin ja musiikkiin.",
+    "descriptionLong": "<p><strong>Luentokonserttisarja: 540 vuotta kitaran historiaa</strong></p><p>Kitaristi Janne Malinen johdattelee pääkirjasto Metson luentokonserttisarjassa kuulijat ikisuositun soittimen historian äärelle. Tutustumme eri aikakausien kitaroihin, säveltäjiin ja musiikkiin. Ennen jokaista tilaisuutta yleisöllä on mahdollisuus tutustua Riento-kitaroihin klo 17 alkaen. Paikalla on myös Kitaratohtori, joka arvioi soittimesi huolto- tai korjaustarpeen.</p><p><br /></p><p><strong>Kitaran esi-isät: renessanssikitara ja vihuela</strong></p><p>ti 29.9.2026 klo 18, musiikki</p><p>Varhaisin kirjallinen maininta kitarasta ja sen lähisukuisista soittimista on vuodelta 1490. Pian tämän jälkeen alkoi renessanssikitaran ensimmäinen kulta-aika. Riento-esittelyssä klassiset lastenkitarat.</p><p><br /></p><p><strong>Barokin aika</strong></p><p>ti 20.10.2026 klo 18, musiikki</p><p>Aiheena 1600-luvun musiikin tyylin muutos ja barokkikitaran voittokulku. Riento-esittelyssä klassiset täysikokoiset aloittelijan mallit.</p><p><br /></p><p><strong>Varhaisromantiikasta kansallisromantiikkaan</strong></p><p>ti 10.11.2026 klo 18, musiikki</p><p>Esittelyssä kitaran matka kohti 1800-luvun romantiikan aikaa: suoli- ja silkkikielistä nylonin aikakaudelle sekä kaikukopan kasvu lopulliseen kokoonsa. Riento-esittelyssä klassiset kitarat edistyneelle soittajalle.</p><p><br /></p><p><strong>Aikamme kitara</strong></p><p>ti 1.12.2026 klo 18, musiikki</p><p>Kitaristisäveltäjien rinnalle asettuvat myös muiden säveltäjien äänet, lusikalla soittoa ja preparoidun kitaran avantgarde-kokeiluja. Vapaus ja vaikutteiden kirjo kohtaavat oman aikamme kitaramusiikissa. Riento-esittelyssä täysin kokopuiset klassiset kitarat sekä teräskieliset mallit.</p><p><br /></p><p>Tapahtumassa noudatetaan turvallisemman tilan periaatteita: <a href=\"https://www.tampere.fi/kirjastot/kirjaston-turvallisemman-tilan-periaatteet\" rel=\"noopener noreferrer\" target=\"_blank\">Kirjaston turvallisemman tilan periaatteet (Tampere.fi)</a></p><p>Tilan esteettömyystiedot löytyvät kirjaston omilta verkkosivuilta.</p><p><br /></p><p><br /></p><p>Järj. Tampereen kaupunginkirjasto ja kaupunkikulttuuriyksikkö</p>"
+  },
+  {
+    "_id": "6964a0b0fafad1b3a65bdb1d",
+    "defaultEndDate": "2026-10-21T17:00:00.000Z",
+    "defaultStartDate": "2026-10-20T15:00:00.000Z",
+    "event": {
+      "datesType": "individual-dates",
+      "urlPurchaseTicket": "https://www.lippu.fi/artist/tanssiteatteri-md/tanssiteatteri-md-tanssiva-muumilaakso-4064121/?affiliate=TPH&language=fi",
+      "callToActionsPublishingDateDefined": false,
+      "marketingAreaType": "none-area",
+      "dates": [
+        {
+          "start": "2026-10-20T15:00:00.000Z",
+          "end": "2026-10-20T17:00:00.000Z",
+          "isSoldOut": false
+        },
+        {
+          "start": "2026-10-21T15:00:00.000Z",
+          "end": "2026-10-21T17:00:00.000Z",
+          "isSoldOut": false
+        }
+      ],
+      "start": "2026-10-20T15:00:00.000Z",
+      "end": "2026-10-21T17:00:00.000Z",
+      "isBoosting": false
+    },
+    "globalContentCategories": [
+      "culture",
+      "dance"
+    ],
+    "locations": [
+      {
+        "lat": 61.4971404,
+        "lng": 23.7560099,
+        "address": "Hällä-näyttämö, Hämeenkatu 25, 33200 TAMPERE",
+        "country": "FI",
+        "alt": {
+          "fi": {
+            "address": "Hällä-näyttämö, Hämeenkatu 25, 33200 TAMPERE"
+          }
+        },
+        "location_id": "lippu.fi"
+      }
+    ],
+    "pageType": "event",
+    "name": "Tanssiteatteri MD: Tanssiva Muumilaakso",
+    "descriptionShort": "Ympäri maailmaa kiertäneen ja palkitun kestosuosikin hersyvän pyöreät muumihahmot on kuin luotu tanssimaan. Tove Janssonin Näkymätön lapsi ja muita kertomuksia -teoksen pohjalta käsikirjoitetussa koreografiassa taidokas tanssi, musiikki ja visuaaliset elementit punovat kokonaisvaltaisen ja lumoavan ",
+    "descriptionLong": "Ympäri maailmaa kiertäneen ja palkitun kestosuosikin hersyvän pyöreät muumihahmot on kuin luotu tanssimaan. Tove Janssonin Näkymätön lapsi ja muita kertomuksia -teoksen pohjalta käsikirjoitetussa koreografiassa taidokas tanssi, musiikki ja visuaaliset elementit punovat kokonaisvaltaisen ja lumoavan maailman. Tanssin kielellä teos kertoo Janssonille tärkeistä teemoista, ystävyydestä, suvaitsevaisuudesta ja rohkeudesta olla oma itsensä.\n\nKoreografia Samuli Roininen\nSävellys ja äänisuunnittelu Heikki Mäenpää\nPukusuunnittelu ja visuaalinen toteutus Carmela Wager\nProjisointi- ja visuaalinen toteutus Sanna Malkavaara\nValosuunnittelu Sari Mayer\nPeruukit ja hatut Anni Hiro\nOrkesteri Heikki Mäenpää &amp; Moominvalley Orchestra (Suomi), yhteistyössä Ringing Bells Rondo Club (Japani)\nValokuvat Ari Ijäs © Moomin Characters™\nEsitysoikeudet Agency North / © Moomin Characters™\nPerustuu Tove Janssonin Näkymätön lapsi ja muita kertomuksia -teokseen\n\nKesto 50 minuuttia\nSuositusikä yli 3-vuotiaille\n\nRyhmäliput vähintään 5 hengen ryhmille sekä pyörätuolipaikkojen varaus Tanssiteatteri MD:n lipunmyynnistä liput(a)tanssiteatterimd.fi / 050 556 6025. Tanssiteatteri MD:n lipunmyynti palvelee arkisin klo 12-16 ja 1h ennen esityksiä.\n\nhttps://tanssiteatterimd.fi/"
+  }
+]

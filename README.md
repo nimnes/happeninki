@@ -13,10 +13,13 @@ The area and categories can be extended as the project grows.
 
 By default, it skips children's activities, book clubs and reading sessions
 (including reading to dogs), general courses, workshops, bingo, pub quizzes and
-karaoke. Finnish-language learning is an exception to the course filter.
+karaoke, standup, lectures (including lecture-concerts) and nightclub events.
+Music is restricted to the curated concert venues or favourite artists below.
+Finnish-language learning is an exception to the course filter.
 Theatre plays are included only when their performance language is English or
 Russian; unknown languages are excluded. Art Master's calendar is treated as
-Russian-language by default.
+Russian-language by default. Children’s daycare art projects are excluded even
+when the source labels them only as exhibitions.
 
 ## How it works
 
@@ -154,6 +157,13 @@ exclude_courses = true
 allow_finnish_learning = true
 exclude_workshops = true
 exclude_games = true
+exclude_standup = true
+exclude_lectures = true
+exclude_nightclubs = true
+nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
+music_selection = "curated"
+music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
+music_artists = []
 theatre_languages = ["en", "ru"]
 excluded_source_categories = []
 exclude_title_keywords = []
@@ -165,6 +175,20 @@ title phrases such as `"open mic"` to `exclude_title_keywords`. Reading exclusio
 also cover listings tagged as literature; library concerts and exhibitions can
 still be included. Clear Finnish-learning titles can be included even when they
 are listed outside the usual cultural categories.
+
+`music_selection = "curated"` admits music only at `music_venues` or when the title
+names an artist in `music_artists`. The venue list includes Nokia Arena,
+Tampere-talo, Tampereen Jäähalli, Tavara-asema, Tullikamari and G Livelab.
+Venue is a proxy for a curated concert programme, not proof that an artist is popular; favourite artists can be added
+without depending on their venue. Set `music_selection = "all"` to remove this
+restriction. Nightclub, children, lecture and other exclusions still take priority.
+`nightclub_venues` excludes known nightclub locations even without nightlife
+wording. A concert venue having “Klubi” in its name does not alone make it a
+nightclub. Age recommendations under 13 also identify children’s listings.
+
+These rules reject unsuitable listings rather than postponing them in a lower
+ranked backlog. No popularity score is inferred from marketing language or page
+view counts. The publishing batch limit remains a separate operational setting.
 
 `theatre_languages` keeps theatre listings only when the title or description
 explicitly says the performance is in English or Russian, for example "performed

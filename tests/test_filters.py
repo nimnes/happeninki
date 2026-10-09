@@ -30,6 +30,7 @@ def event(**kwargs):
 class PreferenceTests(unittest.TestCase):
     def setUp(self):
         self.config = load_config()
+        self.config["filters"]["music_selection"] = "all"
 
     def reason(self, title, description="", tags=()):
         return exclusion_reason(title, description, tags, self.config)
@@ -45,6 +46,65 @@ class PreferenceTests(unittest.TestCase):
         self.assertIsNotNone(self.reason("Exhibition", tags=["exhibitions", "kids and family"]))
         self.assertIsNotNone(self.reason("Lasten konsertti", tags=["music"]))
         self.assertIsNotNone(self.reason("Craft afternoon", "Tapahtuma on suunnattu lapsille."))
+
+    def test_daycare_exhibition_without_child_tags_is_excluded(self):
+        description = ("Ystävyys on seikkailu on Hervantalaisten yksityisten perhepäivähoitajien "
+                       "yhdessä toteuttama projekti, jossa lapset kokevat jännittävän seikkailun "
+                       "Pupun ja Ketun kanssa käyttäen musiikkia, liikettä ja kädentaitoja.")
+        tags = ["museums and galleries", "museums", "exhibitions"]
+        self.assertEqual(self.reason("Ystävyys on seikkailu", description, tags), "children's activities")
+        self.assertIsNone(parse_tampere(self.page("Ystävyys on seikkailu", tags, description),
+                                       "Tampere", self.config))
+        self.config["filters"]["exclude_children"] = False
+        self.assertIsNone(self.reason("Ystävyys on seikkailu", description, tags))
+
+    def test_daycare_mention_alone_does_not_exclude_adult_exhibition(self):
+        self.assertIsNone(self.reason("Valokuvanäyttely", "Kuvia kaupungista ja sen päiväkodeista.",
+                                      ["exhibitions"]))
+
+    def test_user_linked_examples_are_excluded(self):
+        config = load_config()
+        pages = json.loads((Path(__file__).parent / "fixtures/tampere-preference-examples.json").read_text())
+        self.assertEqual(len(pages), 4)
+        for page in pages:
+            with self.subTest(title=page["name"]):
+                self.assertIsNone(parse_tampere(page, "Tampere", config))
+
+    def test_new_format_exclusions_override_concert_tags(self):
+        for title, description in (("Luentokonserttisarja: 540 vuotta kitaran historiaa", ""),
+                                   ("Comedy night", "Stand-up comedy"),
+                                   ("Friday", "Club night with DJ sets")):
+            self.assertIsNotNone(self.reason(title, description, ["consert"]))
+        for key, title in (("exclude_lectures", "Lecture"), ("exclude_standup", "Stand-up"),
+                           ("exclude_nightclubs", "Club night")):
+            self.config["filters"][key] = False
+            self.assertIsNone(self.reason(title))
+
+    def test_family_show_without_child_tag_is_excluded(self):
+        self.assertIsNotNone(self.reason("Show", "Koko perheelle sopiva esitys", ["culture"]))
+        self.assertIsNotNone(self.reason("Show", "Lasten konsertti kirjastossa", ["music"]))
+        self.assertIsNone(self.reason("Adult concert", "Lastenliput 10 euroa", ["music"]))
+
+    def test_child_age_and_untagged_theatre(self):
+        self.assertIsNotNone(self.reason("Tanssiteatteri MD: Tanssiva Muumilaakso",
+                                        "Suositusikä yli 3-vuotiaille", ["culture", "dance"]))
+        self.assertIsNotNone(self.reason("Eliisa-teatteri: Augusta", "Esitys suomeksi", ["consert"]))
+        self.assertIsNone(self.reason("Adult concert", "Ikäraja 18 vuotta", ["music"]))
+        self.assertIsNone(self.reason("Adult concert", "Children under 7 enter free", ["music"]))
+
+    def test_curated_music_and_nightclub_venues(self):
+        self.config["filters"]["music_selection"] = "curated"
+        self.assertIsNone(exclusion_reason("Headline concert", "", ["music"], self.config,
+                                          venue="Nokia Arena, Kansikatu 3"))
+        self.assertIsNotNone(exclusion_reason("Local performer", "", ["consert"], self.config,
+                                              venue="Kalevan Kulma"))
+        self.config["filters"]["music_artists"] = ["Favourite Band"]
+        self.assertIsNone(self.reason("Favourite Band live", tags=["music"]))
+        self.assertIsNotNone(self.reason("Not Favourite Bandit", tags=["music"]))
+        self.assertIsNotNone(exclusion_reason("Favourite Band live", "", ["music"], self.config,
+                                              venue="Fame Club"))
+        self.assertIsNone(parse_tampere(self.page("Local performer", ["consert"]),
+                                       "Tampere", self.config))
 
     def test_reading_activities_and_dogs(self):
         for title in ("Lukupiiri", "Lukukoiralle lukeminen", "Lue koiralle", "Kirjakerho",
@@ -145,6 +205,7 @@ class QueuePreferenceTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.directory.name) / "events.db")
         self.config = load_config()
+        self.config["filters"]["music_selection"] = "all"
 
     def tearDown(self):
         self.store.close()

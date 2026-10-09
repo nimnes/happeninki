@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from happeninki.__main__ import publish_pending, run
-from happeninki.config import load_config
+from happeninki.config import load_config as load_production_config
 from happeninki.http import RemoteError
 from happeninki.models import Event, next_month
 from happeninki.releases import ReleaseState
@@ -19,6 +19,13 @@ from happeninki.sources import TampereSource, parse_syo, parse_tampere
 from happeninki.store import Store, validate_database
 from happeninki.telegram import Telegram, TelegramThrottled, build_message, channel_hash, date_range_label
 from happeninki.translator import TranslationUnavailable, Translator
+
+
+def load_config():
+    # These tests exercise transport, dates and formatting with generic concerts.
+    config = load_production_config()
+    config["filters"]["music_selection"] = "all"
+    return config
 
 
 TODAY = date(2026, 10, 5)
@@ -201,9 +208,10 @@ class StateTests(unittest.TestCase):
         self.assertEqual(self.store.requeue_upcoming([near, far], TODAY, date(2027, 10, 5)), 0)
         self.assertEqual(self.store.publication(key, "ru", HASHES["ru"])["message_id"], 123)
 
+    @patch("happeninki.__main__.load_config", side_effect=lambda _: load_config())
     @patch("happeninki.__main__.datetime")
     @patch("happeninki.__main__.collect")
-    def test_reset_requeue_preview_does_not_change_saved_state(self, collect_mock, datetime_mock):
+    def test_reset_requeue_preview_does_not_change_saved_state(self, collect_mock, datetime_mock, config_mock):
         near = event()
         far = event(source_id="2", start="2026-12-01", end="2026-12-02")
         self.ingest([near, far])

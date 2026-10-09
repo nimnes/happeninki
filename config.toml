@@ -16,6 +16,15 @@ exclude_courses = true
 allow_finnish_learning = true
 exclude_workshops = true
 exclude_games = true  # Bingo, pub quizzes and karaoke.
+exclude_standup = true
+exclude_lectures = true
+exclude_nightclubs = true
+nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
+# Curated venues are a conservative proxy, not proof of artist popularity.
+# Add favourite artists to admit their concerts at other venues; "all" disables this restriction.
+music_selection = "curated"
+music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
+music_artists = []
 theatre_languages = ["en", "ru"]  # Require explicit performance language; [] allows any language.
 # Additional exact source category names, e.g. "dance" or "comedy".
 excluded_source_categories = []

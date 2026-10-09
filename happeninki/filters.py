@@ -5,6 +5,11 @@ from .models import plain_text
 
 CHILDREN = re.compile(r"\b(lasten\w*|lapsille|lapsiperhe\w*|vauva\w*|taapero\w*|satutuokio\w*|children(?:'s)?|kids|toddlers?|babies)\b", re.I)
 CHILD_AUDIENCE = re.compile(r"(?:suunnattu|tarkoitettu|sopii|suunniteltu)\s+(?:\w+\s+){0,3}(?:lapsille|lapsiperheille)|(?:for|aimed at)\s+(?:young\s+)?(?:children|kids|toddlers)", re.I)
+CHILD_PROJECT = re.compile(
+    r"\b(?:\w*perhepäivähoi\w*|\w*päiväkoti\w*|\w*päiväkode\w*|daycare|day\s+care|preschool|kindergarten)\b", re.I)
+CHILD_PARTICIPATION = re.compile(
+    r"\b(?:lapset\s+(?:kokevat|tekevät|luovat|osallistuvat)|lasten\s+(?:tekem\w*|taide\w*|töi\w*|projekt\w*)|"
+    r"(?:created|made|produced)\s+by\s+(?:children|kids)|children(?:'s)?\s+(?:art|artwork|project)\w*)\b", re.I)
 READING = re.compile(r"\b(\w*lukukoira\w*|lue\s+koir(?:alle|ille)|lukupiir\w*|lukuhetk\w*|lukutuokio\w*|satutuokio\w*|kirjakerho\w*|book\s+club|reading\s+(?:group|club)|(?:read|reading)\s+to\s+(?:(?:a|the)\s+)?dogs?|story\s*time)\b", re.I)
 COURSES = re.compile(r"\b(\w*kurss\w*|\w*oppitun\w*|courses?|classes?|lessons?|training\s+course)\b", re.I)
 FINNISH_LEARNING = re.compile(r"\b(suomen\s+kiel\w*|suomea\s+(?:oppi\w*|opiskele\w*|harjoit\w*)|(?:puhutaan|puhu|opitaan|opiskellaan|harjoitellaan)\s+suomea|finnish\s+(?:language|courses?|classes?|lessons?|conversation)|(?:learn|learning|practice|practise)\s+finnish)\b", re.I)
@@ -12,7 +17,24 @@ LANGUAGE_ACTIVITY = re.compile(r"\b(\w*kurss\w*|\w*kielikahvila\w*|\w*keskustelu
 FINNISH_PRACTICE = re.compile(r"\b(suomen\s+kielen\s+(?:kurss\w*|opetu\w*|oppimi\w*|opiskel\w*|harjoit\w*)|(?:puhutaan|puhu|opitaan|opiskellaan|harjoitellaan)\s+suomea|suomea\s+(?:oppi\w*|opiskele\w*|harjoit\w*)|finnish\s+(?:language\s+)?(?:courses?|classes?|lessons?|conversation)|(?:learn|learning|practice|practise)\s+finnish)\b", re.I)
 WORKSHOPS = re.compile(r"\b(\w*työpaja\w*|\w*askartelu\w*|workshops?|craft\s+(?:group|session))\b", re.I)
 GAMES = re.compile(r"\b(\w*bingo\w*|pub\s*quiz\w*|pubivisa\w*|tietovisa\w*|karaoke\w*)\b", re.I)
+CHILD_SHOW = re.compile(r"\b(?:koko\s+perhe(?:elle|en)|lasten\s+(?:konsertti\w*|esitys\w*|teatteri\w*|musikaali\w*)|"
+                        r"(?:show|concert|performance)\s+for\s+(?:the\s+whole\s+family|children))\b", re.I)
 THEATRE = re.compile(r"\b(\w*näytelmä\w*|teatteriesitys\w*|stage\s+play|theatr(?:e|ical)\s+(?:play|performance))\b", re.I)
+# Check the whole listing for explicit event formats; source tags are often incomplete.
+STANDUP = re.compile(r"\b(?:stand[ -]?up|standupkomi\w*|стендап\w*)\b", re.I)
+LECTURES = re.compile(r"\b(?:\w*luento\w*|lectures?|лекци\w*)\b", re.I)
+NIGHTCLUB = re.compile(r"\b(?:yökerho\w*|night\s*club\w*|club\s+night|klubi[ -]?ilta\w*|"
+                       r"dj[ -]?(?:set|night|ilta)\w*|дискотек\w*|ночной\s+клуб)\b", re.I)
+CHILD_AGE = re.compile(r"\b(?:suositusikä|ikä(?:suositus|raja)?|recommended\s+age|ages?)\s*[:]?\s*"
+                       r"(?:yli\s+|over\s+)?([0-9]{1,2})(?:\s*[–-]\s*([0-9]{1,2}))?"
+                       r"(?:\s*[- ]?vuotia\w*|\s*years?\w*|\s*\+)?", re.I)
+
+
+def child_age_recommendation(text):
+    return any(int(match[1]) < 13 and (not match[2] or int(match[2]) < 13)
+               for match in CHILD_AGE.finditer(text))
+
+
 ENGLISH_PERFORMANCE = re.compile(
     r"\b(?:esityskieli\s*(?:on|:)?\s*englanti|"
     r"(?:esitys|näytelmä)\s+(?:esitetään|on|puhutaan)\s+(?:englanniksi|englannin\s+kielellä|englanninkielinen)|"
@@ -55,10 +77,20 @@ def is_finnish_learning(title, description):
                 (LANGUAGE_ACTIVITY.search(title) and FINNISH_PRACTICE.search(description)))
 
 
-def exclusion_reason(title, description, source_categories, config, performance_languages=()):
+def exclusion_reason(title, description, source_categories, config, performance_languages=(), venue=""):
     preferences = config.get("filters", {})
     title, description = plain_text(title), plain_text(description)
     tags = {tag.casefold() for tag in source_categories}
+    text = title + ". " + description
+    if preferences.get("exclude_nightclubs") and any(
+            name.casefold() in venue.casefold() for name in preferences.get("nightclub_venues", [])):
+        return "nightclub venue"
+    if preferences.get("exclude_standup") and (tags.intersection({"standup", "stand-up", "stand up"}) or STANDUP.search(text)):
+        return "standup"
+    if preferences.get("exclude_lectures") and LECTURES.search(text):
+        return "lectures"
+    if preferences.get("exclude_nightclubs") and NIGHTCLUB.search(text):
+        return "nightclub events"
     if preferences.get("exclude_courses") and re.search(r'\bкурсы?\b', title, re.I):
         return "courses"
     if preferences.get("exclude_workshops") and re.search(r'\b(?:мастер-класс\w*|воркшоп\w*)\b', title, re.I):
@@ -70,7 +102,9 @@ def exclusion_reason(title, description, source_categories, config, performance_
     if tags.intersection(tag.casefold() for tag in preferences.get("excluded_source_categories", [])):
         return "custom source category"
     if preferences.get("exclude_children") and (
-            "kids and family" in tags or CHILDREN.search(title) or CHILD_AUDIENCE.search(description)):
+            "kids and family" in tags or CHILDREN.search(title) or CHILD_AUDIENCE.search(description)
+            or CHILD_SHOW.search(text) or child_age_recommendation(text)
+            or (CHILD_PROJECT.search(description) and CHILD_PARTICIPATION.search(description))):
         return "children's activities"
     learning = preferences.get("allow_finnish_learning") and is_finnish_learning(title, description)
     if preferences.get("exclude_reading") and (
@@ -83,10 +117,17 @@ def exclusion_reason(title, description, source_categories, config, performance_
     if preferences.get("exclude_games") and GAMES.search(title):
         return "bingo, quizzes or karaoke"
     if preferences.get("theatre_languages") and (
-            tags.intersection({"theatre", "theater"}) or THEATRE.search(title)):
+            tags.intersection({"theatre", "theater"}) or THEATRE.search(text) or re.search(r"\b\w*teatteri\w*\b", title, re.I)):
         if not (set(performance_languages).intersection(preferences["theatre_languages"])
                 or has_allowed_theatre_language(title, description, preferences["theatre_languages"])):
             return "theatre without confirmed allowed performance language"
+    music_tags = set(config.get("category_mapping", {}).get("music", []))
+    if tags.intersection(music_tags) and preferences.get("music_selection") == "curated":
+        artists = preferences.get("music_artists", [])
+        venues = preferences.get("music_venues", [])
+        if not (any(re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.I) for artist in artists)
+                or any(name.casefold() in venue.casefold() for name in venues)):
+            return "music outside curated artists or venues"
     return None
 
 
@@ -94,4 +135,7 @@ def event_exclusion_reason(event, config):
     municipalities = config["sources"].get(event.source, {}).get("municipalities", config["municipalities"])
     if event.municipality not in municipalities or event.category not in config["categories"]:
         return "area or category"
-    return exclusion_reason(event.title, event.description, event.source_categories, config, event.performance_languages)
+    tags = list(event.source_categories)
+    if event.category == "music" and not set(tags).intersection(config["category_mapping"]["music"]):
+        tags.append(config["category_mapping"]["music"][0])
+    return exclusion_reason(event.title, event.description, tags, config, event.performance_languages, event.address or event.venue)
