@@ -5,3 +5,6 @@ __pycache__/
 data/
 preview.json
 .DS_Store
+docs/event-selection-pilot.json
+docs/event-selection-research-progress.md
+docs/event-selection-research.md

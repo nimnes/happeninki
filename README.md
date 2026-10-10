@@ -1,5 +1,7 @@
 # Häppeninki
 
+<img src="assets/telegram-channel-icon.png" alt="Häppeninki logo" width="180">
+
 Find something worth going out for in Tampere.
 
 Häppeninki discovers local events and shares short Russian and English summaries
