@@ -110,6 +110,19 @@ class Event:
     def active_on(self, day):
         return date.fromisoformat(self.end[:10]) >= day
 
+    def next_occurrence(self, day, now=None):
+        """Earliest unfinished occurrence, without discarding historical dates."""
+        occurrences = self.dates or [{"start": self.start, "end": self.end}]
+        upcoming = []
+        for occurrence in occurrences:
+            finish = datetime.fromisoformat(occurrence['end'])
+            if finish.date() < day:
+                continue
+            if now is not None and not self.date_only and finish.tzinfo and finish <= now:
+                continue
+            upcoming.append(occurrence['start'])
+        return min(upcoming) if upcoming else None
+
     def overlaps(self, start, end):
         if self.dates:
             return any(date.fromisoformat(d["end"][:10]) >= start

@@ -11,7 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config import load_config
-from .http import HttpClient
+from .http import HttpClient, RemoteError
 from .models import next_month
 from .releases import ReleaseState
 from .sources import collect
@@ -30,12 +30,27 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
     selection = config.get('selection', {})
     pending = store.pending(today, enabled_languages, hashes, now=now, include_updates=selection.get('enabled', False))
     pending = [item for item in pending if item[1].source not in blocked_sources]
-    pending, decisions = rank_pending(store, pending, config, today, hashes)
+    pending, decisions = rank_pending(store, pending, config, today, hashes, now=now)
     report = selection_report(store, pending, decisions, config, classifier, deadline)
+    report['delivery_holds'] = store.delivery_holds(hashes)
+    if report['delivery_holds']:
+        LOG.warning('%d uncertain deliveries held; check the channels before resolving them', len(report['delivery_holds']))
     write_selection_report(config, report)
     LOG.info("%d events queued for publication or update", len(pending))
     sent, failures = 0, 0
     for event_id, event, languages in pending[:config["max_events_per_run"]]:
+        # Select all available channel deliveries together. A failure in the first
+        # language must not let the remaining language expire as editorial overflow.
+        selected_new_delivery = False
+        for language in languages:
+            if (not store.publication(event_id, language, hashes[language])
+                    and store.delivery_status(event_id, language, hashes[language]) not in {'pending', 'unknown'}
+                    and (not selection.get('enabled') or store.quota_used(
+                        datetime.now(ZoneInfo(config['timezone'])).date(), hashes[language]) < selection['daily_limit'])):
+                store.set_delivery(event_id, language, hashes[language], 'pending', event.fingerprint)
+                selected_new_delivery = True
+        if selected_new_delivery:
+            checkpoint(store)  # Preserve the choice even if translation is interrupted.
         for language in languages:
             if time.monotonic() >= deadline:
                 LOG.warning("Run time budget reached; remaining events stay queued")
@@ -77,7 +92,6 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 reservation = store.reserve_post(quota_day, hashes[language], event_id, selection['daily_limit'])
                 if not reservation:
                     continue
-                checkpoint(store)  # Persist the slot before submitting to Telegram.
             try:
                 extra = {"image_url": image_url, "message_kind": message_kind} if image_url or message_kind == "photo" else {}
                 for attempt in range(4):
@@ -90,9 +104,16 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                             if not reservation:
                                 return sent, failures
                             quota_day = current_day
+                        if not publication:
+                            # Persist the hold before the network call. A crash or
+                            # lost reply must not cause a resend in the next run.
+                            store.set_delivery(event_id, language, hashes[language], 'unknown', event.fingerprint)
+                            checkpoint(store)
                         message_id = telegram.publish(language, message, publication["message_id"] if publication else None, **extra)
                         break
                     except TelegramThrottled as exc:
+                        if not publication:
+                            store.set_delivery(event_id, language, hashes[language], 'pending', event.fingerprint)
                         checkpoint(store)
                         delay = exc.retry_after
                         if (attempt == 3 or not isinstance(delay, (int, float)) or isinstance(delay, bool)
@@ -112,6 +133,12 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 # A transport timeout can mean Telegram accepted the message.
                 # Stop the run; never repeatedly submit it in this run.
                 LOG.error("Telegram failed for %s (%s): %s", event.source_key, language, exc)
+                if not publication and isinstance(exc, RemoteError) and exc.status in {400, 401, 403, 404}:
+                    store.set_delivery(event_id, language, hashes[language], 'pending', event.fingerprint)
+                    if reservation:
+                        store.finish_reservation(reservation, 'released')
+                report['delivery_holds'] = store.delivery_holds(hashes)
+                write_selection_report(config, report)
                 checkpoint(store)
                 return sent, failures + 1
             store.mark_published(event_id, language, hashes[language], message_id, event.fingerprint,
@@ -221,8 +248,10 @@ def run(args):
                 pending = store.pending(today, preview_languages, hashes,
                                         now=datetime.now(ZoneInfo(config["timezone"])), include_updates=config.get('selection', {}).get('enabled', False))
                 pending = [item for item in pending if item[1].source not in blocked_sources]
-                pending, decisions = rank_pending(store, pending, config, today, hashes)
+                pending, decisions = rank_pending(store, pending, config, today, hashes,
+                                                 now=datetime.now(ZoneInfo(config['timezone'])))
                 report = selection_report(store, pending, decisions, config, classifier, deadline)
+                report['delivery_holds'] = store.delivery_holds(hashes)
                 slots = {lang: max(0, config.get('selection', {}).get('daily_limit', args.limit) - store.quota_used(today, hashes[lang])) for lang in preview_languages}
                 selected = []
                 for event_id, event, languages in pending[:config['max_events_per_run']]:

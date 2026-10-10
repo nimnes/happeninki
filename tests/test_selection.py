@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from unittest.mock import patch
 
 from happeninki.classifier import Classifier, comparison, validate
 from happeninki.config import load_config
@@ -15,6 +16,8 @@ from happeninki.selection import rank_pending
 from happeninki.store import Store
 from happeninki.__main__ import publish_pending
 from happeninki.telegram import channel_hash
+from happeninki.translator import TranslationUnavailable
+from happeninki.http import RemoteError
 
 TODAY = date(2026, 10, 9)
 HASHES = {'en': channel_hash('en'), 'ru': channel_hash('ru')}
@@ -81,6 +84,87 @@ class SelectionTests(unittest.TestCase):
         pending = self.pending([event(description='Updated jazz concert programme')], TODAY + timedelta(days=3))
         self.assertEqual(len(rank_pending(self.store, pending, self.config, TODAY + timedelta(days=3), HASHES)[0]), 1)
 
+    def test_selected_translation_retries_survive_expiry_and_restart(self):
+        self.pending([event()])
+        class Translator:
+            def translate(self, event, language):
+                raise TranslationUnavailable()
+        class Telegram:
+            channels = {'ru': 'ru', 'en': 'en'}
+            def publish(self, *args, **kwargs):
+                raise AssertionError('Translation failed; no send allowed')
+        result = publish_pending(self.store, self.config, Translator(), Telegram(), TODAY,
+                                 lambda _: None, time.monotonic() + 30)
+        self.assertEqual(result, (0, 1))
+        self.store.close()
+        self.store = Store(self.path)
+        later = TODAY + timedelta(days=4)
+        pending = self.store.pending(later, ['ru', 'en'], HASHES)
+        ranked, _ = rank_pending(self.store, pending, self.config, later, HASHES)
+        self.assertEqual(ranked[0][2], ['ru', 'en'])
+
+    def test_legacy_partial_delivery_retries_after_expiry(self):
+        pending = self.pending([event()])
+        rank_pending(self.store, pending, self.config, TODAY, HASHES)
+        self.store.mark_published(pending[0][0], 'ru', HASHES['ru'], 123, pending[0][1].fingerprint)
+        later = TODAY + timedelta(days=4)
+        pending = self.store.pending(later, ['ru', 'en'], HASHES)
+        ranked, _ = rank_pending(self.store, pending, self.config, later, HASHES)
+        self.assertEqual(ranked[0][2], ['en'])
+
+    def test_definite_send_rejection_remains_retryable_after_expiry(self):
+        self.pending([event()])
+        class Translator:
+            def translate(self, event, language):
+                return {'title': event.title, 'summary': 'Jazz concert'}
+        class Telegram:
+            channels = {'ru': 'ru'}
+            def publish(self, *args, **kwargs):
+                raise RemoteError('Telegram', 403)
+        result = publish_pending(self.store, self.config, Translator(), Telegram(), TODAY, lambda _: None, time.monotonic() + 30)
+        self.assertEqual(result, (0, 1))
+        self.assertEqual(self.store.delivery_holds(HASHES), [])
+        actual_day = datetime.now(ZoneInfo(self.config['timezone'])).date()
+        self.assertEqual(self.store.quota_used(actual_day, HASHES['ru']), 0)
+        later = TODAY + timedelta(days=4)
+        pending = self.store.pending(later, ['ru'], HASHES)
+        self.assertEqual(len(rank_pending(self.store, pending, self.config, later, HASHES)[0]), 1)
+
+    def test_recurring_notice_window_uses_next_occurrence(self):
+        recurring = event(start='2026-09-01T19:00:00+03:00', end='2026-12-01T21:00:00+02:00', dates=[
+            {'start': '2026-09-01T19:00:00+03:00', 'end': '2026-09-01T21:00:00+03:00'},
+            {'start': '2026-12-01T19:00:00+02:00', 'end': '2026-12-01T21:00:00+02:00'}])
+        fingerprint = recurring.fingerprint
+        self.store.ingest([], TODAY, next_month(TODAY))
+        pending = self.pending([recurring])
+        ranked, decisions = rank_pending(self.store, pending, self.config, TODAY, HASHES)
+        self.assertEqual(ranked, [])
+        info = decisions[pending[0][0]]
+        self.assertEqual(info['status'], 'scheduled')
+        self.assertEqual(info['components']['timing'], 0)
+        self.assertEqual(info['next_occurrence'], recurring.dates[1]['start'])
+        ranked, decisions = rank_pending(self.store, pending, self.config, date(2026, 11, 3), HASHES)
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(decisions[ranked[0][0]]['components']['timing'], 10)
+        self.assertEqual(recurring.fingerprint, fingerprint)
+
+    def test_finished_occurrence_today_does_not_open_future_notice_window(self):
+        recurring = event(start='2026-10-09T08:00:00+03:00', end='2026-12-01T21:00:00+02:00', dates=[
+            {'start': '2026-10-09T08:00:00+03:00', 'end': '2026-10-09T09:00:00+03:00'},
+            {'start': '2026-12-01T19:00:00+02:00', 'end': '2026-12-01T21:00:00+02:00'}])
+        pending = self.pending([recurring])
+        ranked, decisions = rank_pending(self.store, pending, self.config, TODAY, HASHES,
+                                         now=datetime.fromisoformat('2026-10-09T10:00:00+03:00'))
+        self.assertEqual(ranked, [])
+        self.assertEqual(decisions[pending[0][0]]['status'], 'scheduled')
+
+    def test_ongoing_exhibition_remains_eligible(self):
+        pending = self.pending([event(category='exhibitions', source_categories=['exhibitions'], date_only=True,
+                                      start='2026-09-01', end='2026-12-01')])
+        ranked, decisions = rank_pending(self.store, pending, self.config, TODAY, HASHES)
+        self.assertEqual(len(ranked), 1)
+        self.assertEqual(decisions[ranked[0][0]]['components']['timing'], 10)
+
     def test_posted_updates_bypass_rejection_and_suppression(self):
         pending = self.pending([event()])
         event_id = pending[0][0]
@@ -126,6 +210,94 @@ class SelectionTests(unittest.TestCase):
         actual_day = datetime.now(ZoneInfo(self.config['timezone'])).date()
         self.assertEqual(self.store.quota_used(actual_day, HASHES['ru']), 1)
         self.assertEqual(self.store.quota_used(actual_day, HASHES['en']), 0)
+
+    def test_uncertain_send_blocks_later_runs_and_duplicate_listings(self):
+        self.pending([event()])
+        class Translator:
+            def translate(self, event, language):
+                return {'title': event.title, 'summary': 'Jazz concert'}
+        class Telegram:
+            channels = {'ru': 'ru'}
+            calls = 0
+            def publish(self, *args, **kwargs):
+                self.calls += 1
+                raise TimeoutError('Accepted message; response lost')
+        telegram = Telegram()
+        publish_pending(self.store, self.config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 30)
+        self.store.close()
+        self.store = Store(self.path)
+        self.pending([event(description='Changed source description'),
+                      event(2, title=event().title, end='2026-10-20T22:00:00+03:00')])
+        result = publish_pending(self.store, self.config, Translator(), telegram, TODAY + timedelta(days=1),
+                                 lambda _: None, time.monotonic() + 30)
+        self.assertEqual(result, (0, 0))
+        self.assertEqual(telegram.calls, 1)
+        self.assertEqual(self.store.delivery_holds(HASHES)[0]['source_key'], 'tampere:1')
+        self.config['selection']['enabled'] = False
+        # Disable the duplicate listing, then ensure the original still cannot resend.
+        self.store.reconcile_selection('tampere', [event()], TODAY, next_month(TODAY))
+        publish_pending(self.store, self.config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 30)
+        self.assertEqual(telegram.calls, 1)
+
+    def test_legacy_reservation_requires_explicit_resolution(self):
+        pending = self.pending([event()])
+        event_id = pending[0][0]
+        self.store.reserve_post(TODAY, HASHES['ru'], event_id, 5)
+        self.assertEqual(self.store.pending(TODAY, ['ru', 'en'], HASHES)[0][2], ['en'])
+        self.store.resolve_delivery(event().source_key, 'ru', HASHES['ru'])
+        self.assertEqual(self.store.pending(TODAY, ['ru', 'en'], HASHES)[0][2], ['ru', 'en'])
+        self.assertEqual(self.store.quota_used(TODAY, HASHES['ru']), 0)
+
+    def test_delivery_resolution_command_does_not_send(self):
+        from happeninki.resolve_delivery import main
+        pending = self.pending([event()])
+        event_id = pending[0][0]
+        self.store.set_delivery(event_id, 'ru', HASHES['ru'], 'unknown', pending[0][1].fingerprint)
+        with patch('sys.argv', ['resolve_delivery', 'tampere:1', '--language', 'ru', '--database', str(self.path), '--retry']), \
+                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru'}), patch('builtins.print'):
+            main()
+        self.assertEqual(self.store.delivery_status(event_id, 'ru', HASHES['ru']), 'pending')
+
+    def test_resolving_existing_message_preserves_attempt_fingerprint(self):
+        pending = self.pending([event()])
+        event_id, original, _ = pending[0]
+        self.store.set_delivery(event_id, 'ru', HASHES['ru'], 'unknown', original.fingerprint)
+        self.store.reserve_post(TODAY, HASHES['ru'], event_id, 5)
+        self.pending([event(description='Source changed while delivery held')])
+        self.store.resolve_delivery(original.source_key, 'ru', HASHES['ru'], 123, 'photo')
+        receipt = self.store.publication(event_id, 'ru', HASHES['ru'])
+        self.assertEqual(receipt['fingerprint'], original.fingerprint)
+        self.assertEqual(receipt['message_kind'], 'photo')
+        self.assertEqual(self.store.quota_used(TODAY, HASHES['ru']), 1)
+        self.assertEqual(self.store.pending(TODAY, ['ru'], HASHES)[0][2], ['ru'])
+        with self.assertRaises(ValueError):
+            self.store.resolve_delivery(original.source_key, 'ru', HASHES['ru'])
+
+    def test_lost_receipt_checkpoint_restores_hold_not_resend(self):
+        pending = self.pending([event()])
+        event_id = pending[0][0]
+        backup = Path(self.directory.name) / 'remote.db'
+        class Translator:
+            def translate(self, event, language):
+                return {'title': event.title, 'summary': 'Jazz concert'}
+        class Telegram:
+            channels = {'ru': 'ru'}
+            calls = 0
+            def publish(self, *args, **kwargs):
+                self.calls += 1
+                return 123
+        telegram = Telegram()
+        def checkpoint(store):
+            if store.publication(event_id, 'ru', HASHES['ru']):
+                raise RuntimeError('Receipt upload failed')
+            store.snapshot(backup)
+        with self.assertRaisesRegex(RuntimeError, 'Receipt upload failed'):
+            publish_pending(self.store, self.config, Translator(), telegram, TODAY, checkpoint, time.monotonic() + 30)
+        self.store.close()
+        self.path = backup
+        self.store = Store(backup)
+        publish_pending(self.store, self.config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 30)
+        self.assertEqual(telegram.calls, 1)
 
     def test_quota_survives_restart_reset_and_unknown_send(self):
         slot = self.store.reserve_post(TODAY, HASHES['ru'], 'one', 1)

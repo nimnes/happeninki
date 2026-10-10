@@ -39,6 +39,10 @@ class Store:
             CREATE TABLE IF NOT EXISTS daily_posts(
                 id TEXT PRIMARY KEY, day TEXT NOT NULL, channel_hash TEXT NOT NULL,
                 event_id TEXT NOT NULL, status TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS deliveries(
+                event_id TEXT NOT NULL, language TEXT NOT NULL, channel_hash TEXT NOT NULL,
+                status TEXT NOT NULL, fingerprint TEXT NOT NULL,
+                PRIMARY KEY(event_id, language, channel_hash));
         """)
         version = self.get_meta("schema_version")
         if "message_kind" not in {row[1] for row in self.connection.execute("PRAGMA table_info(publications)")}:
@@ -61,7 +65,7 @@ class Store:
     def reset(self):
         """Clear history locally; the caller checkpoints only after a complete scan."""
         with self.connection:
-            for table in ("publications", "translations", "aliases", "events", "suppressed_events"):
+            for table in ("publications", "translations", "aliases", "events", "suppressed_events", "deliveries"):
                 self.connection.execute(f"DELETE FROM {table}")
             self.connection.execute("DELETE FROM metadata WHERE key != 'schema_version'")
 
@@ -151,6 +155,8 @@ class Store:
                 if event.delivery_languages and language not in event.delivery_languages:
                     continue
                 publication = self.publication(row["id"], language, channel_hashes[language])
+                if publication is None and self.delivery_status(row['id'], language, channel_hashes[language]) == 'unknown':
+                    continue
                 suppressed = self.connection.execute("SELECT 1 FROM suppressed_events WHERE event_id=?", (row['id'],)).fetchone()
                 if suppressed and not (include_updates and publication):
                     continue
@@ -170,6 +176,61 @@ class Store:
         with self.connection:
             self.connection.execute("INSERT OR REPLACE INTO publications VALUES(?,?,?,?,?,?)",
                                     (event_id, language, channel_hash, message_id, fingerprint, message_kind))
+            self.connection.execute('UPDATE deliveries SET status=? WHERE event_id=? AND language=? AND channel_hash=?',
+                                    ('sent', event_id, language, channel_hash))
+
+    def delivery_status(self, event_id, language, channel):
+        row = self.connection.execute('SELECT status FROM deliveries WHERE event_id=? AND language=? AND channel_hash=?',
+                                      (event_id, language, channel)).fetchone()
+        if row:
+            return row[0]
+        # Older snapshots have reservations without delivery state. Their outcome
+        # cannot be reconstructed safely; retain a conservative hold.
+        if self.connection.execute('SELECT 1 FROM daily_posts WHERE event_id=? AND channel_hash=? AND status=?',
+                                   (event_id, channel, 'reserved')).fetchone():
+            return 'unknown'
+        return None
+
+    def set_delivery(self, event_id, language, channel, status, fingerprint):
+        with self.connection:
+            self.connection.execute('INSERT OR REPLACE INTO deliveries VALUES(?,?,?,?,?)',
+                                    (event_id, language, channel, status, fingerprint))
+
+    def has_publication(self, event_id, channels):
+        return any(row[0] in channels for row in self.connection.execute(
+            'SELECT channel_hash FROM publications WHERE event_id=?', (event_id,)))
+
+    def delivery_holds(self, hashes):
+        holds = []
+        for row in self.connection.execute('SELECT id, payload FROM events'):
+            event = Event(**json.loads(row['payload']))
+            for language, channel in hashes.items():
+                if (not self.publication(row['id'], language, channel)
+                        and self.delivery_status(row['id'], language, channel) == 'unknown'):
+                    holds.append({'source_key': event.source_key, 'language': language,
+                                  'reason': 'Telegram delivery outcome unknown'})
+        return holds
+
+    def resolve_delivery(self, source_key, language, channel, message_id=None, message_kind='text'):
+        if (message_kind not in {'text', 'photo'} or (message_id is not None and
+                (not isinstance(message_id, int) or isinstance(message_id, bool) or message_id <= 0))):
+            raise ValueError('Use a positive message ID and a text or photo message kind')
+        row = self.connection.execute('SELECT event_id FROM aliases WHERE source_key=?', (source_key,)).fetchone()
+        if (not row or self.publication(row[0], language, channel)
+                or self.delivery_status(row[0], language, channel) != 'unknown'):
+            raise ValueError('No unresolved delivery exists for this event and channel')
+        event_id = row[0]
+        attempt = self.connection.execute('SELECT fingerprint FROM deliveries WHERE event_id=? AND language=? AND channel_hash=?',
+                                          (event_id, language, channel)).fetchone()
+        fingerprint = attempt[0] if attempt else ''
+        with self.connection:
+            if message_id is not None:
+                self.connection.execute('INSERT OR REPLACE INTO publications VALUES(?,?,?,?,?,?)',
+                                        (event_id, language, channel, message_id, fingerprint, message_kind))
+            self.connection.execute('INSERT OR REPLACE INTO deliveries VALUES(?,?,?,?,?)',
+                                    (event_id, language, channel, 'sent' if message_id is not None else 'pending', fingerprint))
+            self.connection.execute('UPDATE daily_posts SET status=? WHERE event_id=? AND channel_hash=? AND status=?',
+                                    ('sent' if message_id is not None else 'released', event_id, channel, 'reserved'))
 
     def translation(self, event, language):
         row = self.connection.execute("SELECT payload FROM translations WHERE text_hash=? AND language=?",
@@ -229,9 +290,14 @@ class Store:
 
     def published_performances(self, hashes):
         from .selection import performance_key
-        return {(performance_key(Event(**json.loads(row['payload']))), row['channel_hash'])
+        known = {(performance_key(Event(**json.loads(row['payload']))), row['channel_hash'])
                 for row in self.connection.execute('SELECT e.payload, p.channel_hash FROM events e JOIN publications p ON e.id=p.event_id')
                 if row['channel_hash'] in hashes.values()}
+        for row in self.connection.execute('SELECT id, payload FROM events'):
+            for language, channel in hashes.items():
+                if self.delivery_status(row['id'], language, channel) == 'unknown':
+                    known.add((performance_key(Event(**json.loads(row['payload']))), channel))
+        return known
 
 
 def validate_database(path):

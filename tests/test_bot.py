@@ -305,7 +305,7 @@ class PipelineTests(unittest.TestCase):
             def publish(self, language, message, message_id=None):
                 self.calls.append((language, message_id))
                 if language == "en":
-                    raise RuntimeError("Temporary failure")
+                    raise RemoteError('Telegram', 403)
                 return 321
         self.telegram = FakeTelegram()
         class FakeTranslator:
@@ -338,7 +338,7 @@ class PipelineTests(unittest.TestCase):
                             TODAY, checkpoint, time.monotonic() + 10)
         self.assertEqual(self.telegram.calls, [])
         actual_day = datetime.now(ZoneInfo(self.config['timezone'])).date()
-        self.assertEqual(self.store.quota_used(actual_day, HASHES["ru"]), 1)
+        self.assertEqual(self.store.quota_used(actual_day, HASHES["ru"]), 0)
 
     def test_quota_failure_leaves_both_languages_pending(self):
         self.ingest([event()])

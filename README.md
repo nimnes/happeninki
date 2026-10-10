@@ -47,6 +47,10 @@ six months ahead (180 days). Listings already known beyond the initial month are
 saved and become eligible when they enter the 30-day publication window.
 Daily slots are shared by scheduled and manual runs. Unselected listings are
 reconsidered for three days, then skipped until their details or preferences change.
+Once chosen for delivery, translation failures and confirmed send rejections remain
+retryable while the event is eligible; they do not expire as unselected overflow.
+Recurring listings use their next unfinished occurrence for the notice window and
+timing score, preserving historical dates in saved state.
 This avoids gradually publishing the entire backlog. Edits and cancellations
 to previously published posts do not use new-post slots.
 
@@ -100,11 +104,39 @@ restore release state and configure the real channels to see their remaining slo
 Classification and editorial records are stored separately from message and
 translation fingerprints, so advisory score changes do not edit Telegram posts.
 Existing databases gain additive tables without losing publication receipts.
-Posting slots are saved before sending: uncertain transport failures retain their
-slot conservatively, and a confirmed rate-limit refusal can release it. Resetting
+Posting slots and delivery holds are saved before sending. Uncertain transport
+failures retain their slot and block automatic resends across runs, including when
+a message was sent but its receipt could not be checkpointed. Confirmed refusals
+remain retryable and can release the slot. Resetting
 event history preserves the daily ledger. The ledger starts with this version;
 older receipts contain no posting dates and cannot reconstruct earlier daily usage.
 Production scheduling is serialized by the existing workflow concurrency group.
+
+### Resolving an uncertain delivery
+
+Preview and publication reports include `delivery_holds` with the source identity
+and affected language. Check that channel manually before resolving a hold, and
+run resolution while publication is idle. Use the same channel environment variable
+as publication. These commands update state without sending Telegram messages.
+
+If the message exists, record its actual ID (and add `--message-kind photo` for
+a photo post):
+
+```sh
+python -m happeninki.resolve_delivery tampere:EVENT_ID --language ru --message-id 123 --release-state
+```
+
+If you have confirmed that no message was posted, permit a later normal retry:
+
+```sh
+python -m happeninki.resolve_delivery tampere:EVENT_ID --language ru --retry --release-state
+```
+
+For local state, omit `--release-state` and optionally supply `--database PATH`.
+Older unresolved daily reservations are held conservatively too, because their
+outcome cannot be reconstructed. A confirmed existing message keeps its quota
+slot; a confirmed unsent attempt releases it. Subsequent source changes still edit
+the confirmed post normally.
 
 ## A small bot without a server
 
