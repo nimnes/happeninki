@@ -69,4 +69,13 @@ def load_config(path="config.toml"):
         value = selection.get(key, 1)
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
             raise ValueError(f'selection.{key} must be a positive integer')
+    digest = config.setdefault('digest', {})
+    if not isinstance(digest, dict):
+        raise ValueError('digest must be a table')
+    digest.setdefault('enabled', False)
+    digest.setdefault('max_events', 10)
+    if not isinstance(digest['enabled'], bool):
+        raise ValueError('digest.enabled must be true or false')
+    if not isinstance(digest['max_events'], int) or isinstance(digest['max_events'], bool) or not 1 <= digest['max_events'] <= 10:
+        raise ValueError('digest.max_events must be between 1 and 10')
     return config

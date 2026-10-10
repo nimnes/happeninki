@@ -43,6 +43,10 @@ class Store:
                 event_id TEXT NOT NULL, language TEXT NOT NULL, channel_hash TEXT NOT NULL,
                 status TEXT NOT NULL, fingerprint TEXT NOT NULL,
                 PRIMARY KEY(event_id, language, channel_hash));
+            CREATE TABLE IF NOT EXISTS weekly_digests(
+                week_start TEXT NOT NULL, language TEXT NOT NULL, channel_hash TEXT NOT NULL,
+                status TEXT NOT NULL, message TEXT NOT NULL, message_id INTEGER,
+                PRIMARY KEY(week_start, language, channel_hash));
         """)
         version = self.get_meta("schema_version")
         if "message_kind" not in {row[1] for row in self.connection.execute("PRAGMA table_info(publications)")}:
@@ -209,7 +213,34 @@ class Store:
                         and self.delivery_status(row['id'], language, channel) == 'unknown'):
                     holds.append({'source_key': event.source_key, 'language': language,
                                   'reason': 'Telegram delivery outcome unknown'})
+        for row in self.connection.execute("SELECT * FROM weekly_digests WHERE status='unknown'"):
+            if hashes.get(row['language']) == row['channel_hash']:
+                holds.append({'source_key': 'digest:' + row['week_start'], 'language': row['language'],
+                              'reason': 'Weekly digest delivery outcome unknown'})
         return holds
+
+    def digest_events(self):
+        """Known current listings, including individually posted/baseline events."""
+        return [Event(**json.loads(row[0])) for row in self.connection.execute(
+            'SELECT payload FROM events WHERE id NOT IN (SELECT event_id FROM suppressed_events)')]
+
+    def weekly_digest(self, week_start, language, channel):
+        return self.connection.execute('SELECT * FROM weekly_digests WHERE week_start=? AND language=? AND channel_hash=?',
+                                       (str(week_start), language, channel)).fetchone()
+
+    def save_weekly_digest(self, week_start, language, channel, status, message, message_id=None):
+        with self.connection:
+            self.connection.execute('INSERT OR REPLACE INTO weekly_digests VALUES(?,?,?,?,?,?)',
+                                    (str(week_start), language, channel, status, message, message_id))
+
+    def resolve_weekly_digest(self, week_start, language, channel, message_id=None):
+        week = date.fromisoformat(week_start)
+        row = self.weekly_digest(week, language, channel)
+        if not row or row['status'] != 'unknown':
+            raise ValueError('No unresolved weekly digest exists for this week and channel')
+        if message_id is not None and (not isinstance(message_id, int) or isinstance(message_id, bool) or message_id <= 0):
+            raise ValueError('Message ID must be positive')
+        self.save_weekly_digest(week, language, channel, 'sent' if message_id is not None else 'pending', row['message'], message_id)
 
     def resolve_delivery(self, source_key, language, channel, message_id=None, message_kind='text'):
         if (message_kind not in {'text', 'photo'} or (message_id is not None and

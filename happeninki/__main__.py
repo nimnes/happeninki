@@ -20,6 +20,7 @@ from .telegram import Telegram, TelegramThrottled, build_message, channel_hash
 from .translator import TranslationUnavailable, Translator
 from .classifier import Classifier, comparison, PROMPT_VERSION
 from .selection import rank_pending, decision_key
+from .digest import preview_digest, publish_digest
 
 LOG = logging.getLogger("happeninki")
 
@@ -192,10 +193,15 @@ def run(args):
     config = load_config(args.config)
     http = HttpClient()
     today = datetime.now(ZoneInfo(config["timezone"])).date()
+    digest_only = getattr(args, 'weekly_digest', False)
+    if digest_only and args.mode == 'publish' and (not config['digest']['enabled'] or today.weekday() != 6):
+        LOG.info('Weekly digest not due: publication is enabled only on Sundays')
+        return 0
     deadline = time.monotonic() + config["run_budget_seconds"]
     channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "").strip() for language in config["languages"]}
     remote = ReleaseState(http, os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
-    translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if args.mode == "publish" or args.translate else None
+    needs_translation = (args.mode == 'publish' and (not digest_only or os.getenv('OLLAMA_API_KEY'))) or args.translate
+    translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if needs_translation else None
     telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels) if args.mode == "publish" else None
     classifier = (Classifier(http, config['ollama'], os.getenv('OLLAMA_API_KEY'))
                   if config.get('selection', {}).get('classifier_mode') == 'shadow'
@@ -218,6 +224,25 @@ def run(args):
             validate_database(db_path)
         store = Store(db_path)
         try:
+            if digest_only:
+                # A digest is a view of existing state, not another source scan.
+                events = store.digest_events()
+                if args.mode == 'preview':
+                    languages = [language for language in config['languages'] if channels[language]] or config['languages']
+                    output = preview_digest(events, config, today, languages, store, translator)
+                    hashes = {language: channel_hash(channels[language] or f'preview-{language}') for language in languages}
+                    output['delivery_holds'] = store.delivery_holds(hashes)
+                    destination = Path(args.output)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+                    LOG.info('Weekly digest preview saved: %s', destination)
+                    return 0
+                checkpoint = remote.checkpoint if remote else lambda _: None
+                sent, failures = publish_digest(events, config, today, store, translator, telegram, checkpoint, deadline)
+                if remote:
+                    remote.prune()
+                LOG.info('Weekly digest finished: %d messages; %d failures', sent, failures)
+                return int(bool(failures))
             first_launch = args.reset_state or store.get_meta("initialized") is None
             initial_end = next_month(today)
             scan_end = today + timedelta(days=config["discovery_days"])
@@ -313,11 +338,14 @@ def main():
     parser.add_argument("--requeue-upcoming", action="store_true", help="Queue all collected upcoming events within the discovery horizon, preserving successful posts")
     parser.add_argument("--translate", action="store_true", help="Translate preview entries without publishing")
     parser.add_argument("--classify", action="store_true", help="Use Ollama for advisory preview classification")
+    parser.add_argument('--weekly-digest', action='store_true', help='Preview/publish next-week digest from saved events only; publication is Sunday-only')
     parser.add_argument("--limit", type=int, default=10, help="Maximum preview entries")
     parser.add_argument("--output", default="data/preview.json")
     args = parser.parse_args()
     if args.limit <= 0:
         parser.error("--limit must be positive")
+    if args.weekly_digest and (args.initialize or args.reset_state or args.requeue_upcoming or args.classify):
+        parser.error('--weekly-digest cannot be combined with initialization, resets, requeue or classification')
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
         return run(args)

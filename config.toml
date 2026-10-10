@@ -93,3 +93,7 @@ lead_days = 30
 reconsider_days = 3
 classifier_mode = "shadow"
 classification_budget = 5
+
+[digest]
+enabled = true
+max_events = 10

@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "0 9 * * *"
       timezone: "Europe/Helsinki"
+    - cron: "0 18 * * 0"
+      timezone: "Europe/Helsinki"
   workflow_dispatch:
     inputs:
       mode:
@@ -11,6 +13,10 @@ on:
         type: choice
         options: [preview, publish]
         default: preview
+      weekly_digest:
+        description: "Only preview/publish next week's digest from saved events (publish on Sunday)"
+        type: boolean
+        default: false
       initialize:
         description: "First launch only: create event history if no release exists"
         type: boolean
@@ -61,6 +67,7 @@ jobs:
       - name: Collect and publish events
         env:
           REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
+          WEEKLY_DIGEST: ${{ inputs.weekly_digest || github.event.schedule == '0 18 * * 0' }}
           INITIALIZE: ${{ inputs.initialize || false }}
           TRANSLATE_PREVIEW: ${{ inputs.translate_preview || false }}
           CLASSIFY_PREVIEW: ${{ inputs.classify_preview || false }}
@@ -68,6 +75,7 @@ jobs:
           REQUEUE_UPCOMING: ${{ inputs.requeue_upcoming || false }}
         run: |
           args=(--mode "$REQUESTED_MODE" --release-state)
+          if [ "$WEEKLY_DIGEST" = "true" ]; then args+=(--weekly-digest); fi
           if [ "$INITIALIZE" = "true" ]; then args+=(--initialize); fi
           if [ "$TRANSLATE_PREVIEW" = "true" ]; then args+=(--translate); fi
           if [ "$CLASSIFY_PREVIEW" = "true" ]; then args+=(--classify); fi

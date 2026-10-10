@@ -31,6 +31,41 @@ Google Maps address, and a link to the original listing. Dates and location appe
 in separate blocks. Postal codes and repeated city names are removed; paid prices
 and price ranges are shown, while zero-euro prices are hidden.
 
+Every **Sunday at 18:00 Helsinki time**, a separate run publishes a digest for the
+following **Monday–Sunday**. Each enabled language channel receives one text
+message with up to ten ranked events, clickable event titles linking to their
+sources, short summaries, dates and venues. Ongoing museum exhibitions are eligible.
+The digest is one additional weekly message alongside the daily event posts.
+
+The digest reads the saved events database, without fetching event calendars again.
+It uses the usual preferences and ranking, including the stricter church choir
+rule, and removes duplicate listings. Previously posted events are eligible too;
+daily selection expiry and the seven-event posting quota do not restrict the digest.
+Suppressed listings, disabled sources and known cancellations are excluded. Its
+information reflects the latest saved scan, normally Sunday's 09:00 daily run.
+
+Cached Russian/English translations are reused. Only missing translations require
+Ollama access; a fully cached digest can be sent without a model key. Descriptions
+are shortened to fit one Telegram message. Unusually long source links may reduce
+the event count below ten; the digest is never split into multiple posts. Nothing
+is posted when there are no eligible events.
+
+`[digest]` in `config.toml` controls `enabled` and `max_events` (1–10). A separate
+weekly receipt prevents duplicate messages on repeated runs, including across
+event-history resets. An uncertain send is held for manual resolution using the
+same recovery command with a source identity such as `digest:2026-10-12`.
+
+Use the workflow's `weekly_digest` option to preview it from release state, or run:
+
+```sh
+python -m happeninki --mode preview --weekly-digest --release-state --output data/preview.json
+```
+
+Omit `--release-state` for an existing local database. Without `--translate`, the
+preview uses cached translations and labels any original-source fallback. Add
+`--translate` for a fully translated preview. Publishing with `--weekly-digest`
+is Sunday-only and sends the missing channel digests without individual posts.
+
 When an event has a cover image, new posts include it above the description.
 Long summaries are shortened to fit a photo caption, keeping dates, location and
 links. If Telegram cannot load the image or the details cannot fit, the bot posts

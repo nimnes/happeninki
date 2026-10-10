@@ -30,7 +30,10 @@ def main():
     validate_database(args.database)
     store = Store(args.database)
     try:
-        store.resolve_delivery(args.source_key, args.language, channel_hash(channel), args.message_id, args.message_kind)
+        if args.source_key.startswith('digest:'):
+            store.resolve_weekly_digest(args.source_key.removeprefix('digest:'), args.language, channel_hash(channel), args.message_id)
+        else:
+            store.resolve_delivery(args.source_key, args.language, channel_hash(channel), args.message_id, args.message_kind)
         if remote:
             remote.checkpoint(store)
     finally:
