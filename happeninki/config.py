@@ -23,12 +23,17 @@ def load_config(path="config.toml"):
                 "exclude_workshops", "exclude_games", "exclude_standup", "exclude_lectures", "exclude_nightclubs", "allow_church_music"):
         if key in filters and not isinstance(filters[key], bool):
             raise ValueError(f"filters.{key} must be true or false")
-    for key in ("excluded_source_categories", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists"):
+    for key in ("excluded_source_categories", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists", "church_choir_works"):
         values = filters.get(key, [])
         if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
             raise ValueError(f"filters.{key} must be a list of nonempty strings")
     if filters.get("music_selection", "all") not in {"all", "curated"}:
         raise ValueError('filters.music_selection must be "all" or "curated"')
+    if filters.get('church_choir_selection', 'all') not in {'all', 'notable'}:
+        raise ValueError('filters.church_choir_selection must be all or notable')
+    if any(':' not in work or any(not part.strip() for part in work.split(':', 1))
+           for work in filters.get('church_choir_works', [])):
+        raise ValueError('filters.church_choir_works entries must be Composer: Work')
     theatre_languages = filters.get("theatre_languages", [])
     if not isinstance(theatre_languages, list) or any(language not in {"en", "ru"} for language in theatre_languages):
         raise ValueError('filters.theatre_languages must contain only "en" or "ru", or be empty')
@@ -53,7 +58,7 @@ def load_config(path="config.toml"):
     selection = config.setdefault('selection', {})
     if not isinstance(selection, dict):
         raise ValueError('selection must be a table')
-    for key, value in {'enabled': False, 'daily_limit': 5, 'lead_days': 30,
+    for key, value in {'enabled': False, 'daily_limit': 7, 'lead_days': 30,
                        'reconsider_days': 3, 'classifier_mode': 'off', 'classification_budget': 5}.items():
         selection.setdefault(key, value)
     if not isinstance(selection.get('enabled', False), bool):

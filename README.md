@@ -24,7 +24,7 @@ when the source labels them only as exhibitions.
 ## How it works
 
 Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
-new listings, ranks eligible events and publishes at most **five new posts per
+new listings, ranks eligible events and publishes at most **seven new posts per
 channel per Helsinki day**. Each selected event receives a separate translated post.
 Each post includes a short description, compact dates and times, a clickable
 Google Maps address, and a link to the original listing. Dates and location appear
@@ -77,7 +77,7 @@ version; these require evaluation before changing the approved eligibility rules
 Duplicate listings with the same normalized title, city, venue and occurrence
 starts compete for one post, even when their advertised end times differ.
 
-The `[selection]` settings control the five-post limit, 30-day notice window,
+The `[selection]` settings control the seven-post limit, 30-day notice window,
 three-day reconsideration period and advisory classifier. `enabled = false`
 restores the original queue behavior; `classifier_mode = "off"` disables only
 model classification. Classification uses the configured Ollama model and key,
@@ -245,6 +245,8 @@ music_selection = "curated"
 music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
 music_artists = []
 allow_church_music = true
+church_choir_selection = "notable"
+church_choir_works = ["Mozart: Requiem", "Handel: Messiah", "Orff: Carmina Burana"]
 theatre_languages = ["en", "ru"]
 excluded_source_categories = []
 exclude_title_keywords = []
@@ -266,6 +268,18 @@ restriction. With `allow_church_music = true`, classical, choir and jazz music
 at church venues is also included, based on the venue name and genre wording in
 the title, description or source categories. Finnish terms such as “kirkko”,
 “klassinen”, “kuoro” and “jazz” are recognized, along with English equivalents.
+Church choirs additionally require a recognized programme or clear scale evidence
+under `church_choir_selection = "notable"`. The configurable `church_choir_works`
+list includes Mozart/Verdi Requiems, Messiah, Carmina Burana, Bach passions and
+Beethoven's Ninth, with Finnish and English title variants. A bare “Requiem”
+requires a matching configured composer. A symphony orchestra, massed choir,
+at least three choirs, at least 100 singers, or a national/international choir
+festival can also qualify a larger production. These are conservative signals
+from the current event's title or advertised programme, not verified audience sizes.
+Generic praise and repertoire mentioned only in a past-performance biography do
+not qualify. Ordinary church choirs are excluded even when described as classical,
+and do not receive the church preference bonus. Existing published messages still
+receive updates. Set `church_choir_selection = "all"` to restore the broader rule.
 Organ recitals and chamber music also count as classical music. Other genres
 at churches still need a listed venue or favourite artist. Set the option to
 `false` to disable this exception. Nightclub, children, lecture and other exclusions

@@ -12,7 +12,7 @@ from happeninki.classifier import Classifier, comparison, validate
 from happeninki.config import load_config
 from happeninki.filters import exclusion_reason, venue_matches
 from happeninki.models import Event, next_month
-from happeninki.selection import rank_pending
+from happeninki.selection import rank_pending, score_event
 from happeninki.store import Store
 from happeninki.__main__ import publish_pending
 from happeninki.telegram import channel_hash
@@ -53,17 +53,25 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(exclusion_reason('Koululaisten leffaperjantai', '', ['movies'], self.config))
         self.assertTrue(exclusion_reason('Tootsie - musikaalikomedia', '', ['movies'], self.config))
         self.assertFalse(exclusion_reason('Asla Jo + Saga Olsson', 'Musiikki on raikas ja musikaalinen.', ['music'], self.config, venue='G Livelab'))
-        self.assertFalse(exclusion_reason('Candomino', 'Nuorisokuoro laulaa klassista musiikkia', ['music'], self.config,
+        self.assertFalse(exclusion_reason('Candomino: Mozartin Requiem', 'Nuorisokuoro laulaa klassista musiikkia', ['music'], self.config,
                                           venue='Tampereen tuomiokirkko, Street 1'))
 
     def test_ranking_prefers_church_and_deduplicates(self):
         regular = event()
-        church = event(2, venue='Tuomiokirkko', address='Tuomiokirkko', description='Kuoro klassinen konsertti')
+        church = event(2, title='Mozartin Requiem', venue='Tuomiokirkko', address='Tuomiokirkko', description='Kuoro esittää klassista musiikkia')
         duplicate = event(3, title=regular.title, end='2026-10-20T22:00:00+03:00')
         pending, decisions = rank_pending(self.store, self.pending([regular, church, duplicate]), self.config, TODAY, HASHES)
         self.assertEqual([item[1].source_id for item in pending], ['2', '1'])
         self.assertIn('duplicate', [item['status'] for item in decisions.values()])
         self.assertGreater(decisions[pending[0][0]]['score'], decisions[pending[1][0]]['score'])
+
+    def test_ordinary_church_choir_has_no_preference_bonus(self):
+        ordinary = event(title='Kuorokonsertti', venue='Tuomiokirkko', address='Tuomiokirkko')
+        notable = replace(ordinary, title='Kuoro: Mozartin Requiem')
+        score, components = score_event(ordinary, self.config, TODAY)
+        self.assertEqual(components['preference_fit'], 30)
+        self.assertEqual(components['programme_context'], 0)
+        self.assertGreater(score_event(notable, self.config, TODAY)[0], score)
 
     def test_overflow_expires_but_far_future_waits(self):
         pending = self.pending([event(), event(2, start='2026-12-01', end='2026-12-02')])
@@ -313,7 +321,7 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(self.store.quota_used(TODAY, HASHES['ru']), 0)
 
     def test_publish_cap_repeated_runs_and_edits(self):
-        self.pending([event(i) for i in range(7)])
+        self.pending([event(i) for i in range(9)])
         class Translator:
             def translate(self, event, language):
                 return {'title': event.title, 'summary': 'Jazz concert'}
@@ -326,11 +334,11 @@ class SelectionTests(unittest.TestCase):
         telegram = Telegram()
         for _ in range(2):
             publish_pending(self.store, self.config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 30)
-        self.assertEqual(len(telegram.calls), 10)
-        self.assertEqual(sum(language == 'ru' for language, _ in telegram.calls), 5)
+        self.assertEqual(len(telegram.calls), 14)
+        self.assertEqual(sum(language == 'ru' for language, _ in telegram.calls), 7)
         self.store.ingest([event(0, description='Updated jazz concert')], TODAY, next_month(TODAY))
         publish_pending(self.store, self.config, Translator(), telegram, TODAY, lambda _: None, time.monotonic() + 30)
-        self.assertEqual(len(telegram.calls), 12)
+        self.assertEqual(len(telegram.calls), 16)
         self.assertTrue(all(message_id for _, message_id in telegram.calls[-2:]))
 
     def test_model_quotes_validation_cache_and_shadow_comparison(self):

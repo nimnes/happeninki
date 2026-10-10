@@ -25,8 +25,18 @@ nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 music_selection = "curated"
 music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
 music_artists = []
-# Also admit classical, choir and jazz concerts at church venues.
+# Also admit classical and jazz concerts at churches; choir concerts need
+# a recognized programme or explicit evidence of a large-scale performance.
 allow_church_music = true
+church_choir_selection = "notable"
+church_choir_works = [
+  "Mozart: Requiem", "Verdi: Requiem", "Orff: Carmina Burana",
+  "Handel: Messiah", "Händel: Messias",
+  "Bach: St Matthew Passion", "Bach: Matteus-passio",
+  "Bach: St John Passion", "Bach: Johannes-passio",
+  "Bach: Mass in B minor", "Bach: h-mollimessu",
+  "Beethoven: Symphony No. 9", "Beethoven: 9. sinfonia",
+]
 theatre_languages = ["en", "ru"]  # Require explicit performance language; [] allows any language.
 # Additional exact source category names, e.g. "dance" or "comedy".
 excluded_source_categories = []
@@ -78,7 +88,7 @@ performance_languages = ["ru"]
 # advisory until the comparison report has been evaluated on labeled examples.
 [selection]
 enabled = true
-daily_limit = 5
+daily_limit = 7
 lead_days = 30
 reconsider_days = 3
 classifier_mode = "shadow"

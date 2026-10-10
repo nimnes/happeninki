@@ -110,10 +110,10 @@ class PreferenceTests(unittest.TestCase):
         config = load_config()
         for title, description, venue in (
                 ("Klassisen musiikin konsertti", "", "Aleksanterin kirkko, Pirkankatu"),
-                ("Tampereen kamarikuoro", "", "Tampereen Tuomiokirkko, Tuomiokirkonkatu 3"),
+                ("Tampereen kamarikuoro: Mozartin Requiem", "", "Tampereen Tuomiokirkko, Tuomiokirkonkatu 3"),
                 ("Jazzilta", "", "Kalevan kirkko, Liisanpuisto 1"),
                 ("Concert", "Classical music", "St John's Church, Main Street 1"),
-                ("Concert", "A choir performs", "Cathedral, Main Street 1"),
+                ("Concert", "A choir performs Handel's Messiah", "Cathedral, Main Street 1"),
                 ("Concert", "Jazz trio", "Messukylän kirkko, Messukylänkatu 54"),
                 ("Urkukonsertti", "", "Nokian kirkko, Pirkkalaistie 22")):
             with self.subTest(title=title, venue=venue):
@@ -140,6 +140,52 @@ class PreferenceTests(unittest.TestCase):
         config["filters"]["allow_church_music"] = False
         self.assertIsNotNone(exclusion_reason("Choir concert", "", ["music"], config,
                                               venue="Kalevan kirkko"))
+
+    def test_church_choir_requires_programme_or_scale_evidence(self):
+        config = load_config()
+        for title, description in (
+                ('Tampereen kamarikuoro', 'Klassista musiikkia'),
+                ('Choir concert', 'A wonderful, famous and spectacular local concert'),
+                ('Kuorokonsertti', 'Ohjelmassa lauluja ja virsiä'),
+                ('Kuorokonsertti: Requiem', ''),
+                ('Kuorofestivaali', ''),
+                ('Choir concert', "The choir previously performed Mozart's Requiem."),
+                ('Choir concert', "The choir performs songs tonight. Previously performed Handel's Messiah.")):
+            with self.subTest(title=title, description=description):
+                page = self.page(title, ['music'], description)
+                page['locations'] = [{'address': 'Kalevan kirkko, Liisanpuisto 1'}]
+                self.assertIsNone(parse_tampere(page, 'Tampere', config))
+                self.assertIsNotNone(event_exclusion_reason(
+                    event(title=title, description=description, address='Kalevan kirkko'), config))
+
+    def test_notable_church_choir_programmes_and_large_performances(self):
+        config = load_config()
+        for title, description in (
+                ('Kuoro: Mozartin Requiem', ''),
+                ('Kuoro: Verdin Requiem', ''),
+                ('Carmina Burana - kuorokonsertti', ''),
+                ('Johannespassio - kuorokonsertti', ''),
+                ('Choir concert', "The choir performs Handel's Messiah."),
+                ('Kuorokonsertti', 'Ohjelmassa on Händelin Messias.'),
+                ('Kuoro ja sinfoniaorkesteri', ''),
+                ('Choir concert', 'The choir performs with a symphony orchestra.'),
+                ('Kansainvälinen kuorofestivaali', ''),
+                ('Kuorokonsertti', 'Konsertissa kuullaan 100 laulajaa.')):
+            with self.subTest(title=title, description=description):
+                page = self.page(title, ['music'], description)
+                page['locations'] = [{'address': 'Kalevan kirkko, Liisanpuisto 1'}]
+                self.assertIsNotNone(parse_tampere(page, 'Tampere', config))
+                self.assertIsNone(event_exclusion_reason(
+                    event(title=title, description=description, address='Kalevan kirkko'), config))
+
+    def test_choir_biography_does_not_exclude_church_jazz(self):
+        self.assertIsNone(exclusion_reason('Jazzilta', 'Laulaja on aiemmin laulanut kuorossa.', ['music'],
+                                          load_config(), venue='Kalevan kirkko'))
+
+    def test_choir_policy_can_be_explicitly_disabled(self):
+        config = load_config()
+        config['filters']['church_choir_selection'] = 'all'
+        self.assertIsNone(exclusion_reason('Kuorokonsertti', '', ['music'], config, venue='Kalevan kirkko'))
 
     def test_church_music_does_not_override_other_exclusions(self):
         config = load_config()

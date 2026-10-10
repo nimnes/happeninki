@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date, datetime
 
-from .filters import event_exclusion_reason, is_church_music, venue_matches
+from .filters import event_exclusion_reason, church_music_eligible, venue_matches
 from .models import normalized
 
 
@@ -34,7 +34,7 @@ def notice_date(event, today, now=None):
 
 def score_event(event, config, today, now=None):
     preferences = config.get('filters', {})
-    church = is_church_music(event.title, event.description, event.source_categories, event.address or event.venue)
+    church = church_music_eligible(event.title, event.description, event.source_categories, event.address or event.venue, config)
     preferred = event.category == 'music' and ((church and preferences.get('allow_church_music')) or any(
         re.search(r'(?<!\w)' + re.escape(artist) + r'(?!\w)', event.title, re.I)
         for artist in preferences.get('music_artists', [])))

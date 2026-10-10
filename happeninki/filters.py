@@ -36,6 +36,61 @@ CHURCH_MUSIC = re.compile(
     r"\b(?:klassinen|klassisen|klassista|klassisesta|klassiseen|classical|barokki\w*|baroque|"
     r"kamarimusi\w*|chamber\s+music|urkumusi\w*|urku(?:konsert\w*|resitaali\w*)|organ\s+(?:music|recital|concert)|"
     r"\w*kuoro\w*|choirs?|choral|\w*jazz\w*|джаз\w*|хор|хоров\w*|классическ\w*)\b", re.I)
+CHOIR = re.compile(r'\b(?:\w*kuoro\w*|choirs?|choral|хор|хоров\w*)\b', re.I)
+CHOIR_PERFORMANCE = re.compile(
+    r'\b(?:\w*kuoro\w*\s+(?:\w+\s+){0,4}(?:esittää|esittävät|esiintyy|esiintyvät|laulaa|laulavat)|'
+    r'choir\s+(?:\w+\s+){0,3}(?:performs?|sings?|presents?)|choral\s+concert)\b', re.I)
+PROGRAMME = re.compile(
+    r'\b(?:ohjelmassa|konsertissa\s+kuullaan|esittää|esittävät|esitetään|'
+    r'perform(?:s|ing)?|present(?:s|ing)?|programme|program|features?)\b', re.I)
+LARGE_CHOIR_EVENT = re.compile(
+    r'\b(?:sinfoniaorkesteri\w*|symphony\s+orchestra|mass(?:ed)?\s+choir|'
+    r'(?:[3-9]|[1-9][0-9]+)\s+(?:kuoroa|choirs)|[1-9][0-9]{2,}\s+(?:laulajaa|singers)|'
+    r'(?:kansainväli\w*|valtakunnalli\w*)\s+(?:\w+\s+){0,3}kuorofestivaali\w*|'
+    r'(?:international|national)\s+(?:choral|choir)\s+festival)\b', re.I)
+
+
+def programme_text(title, description):
+    # Repertoire/scale must concern this concert, not an artist biography.
+    parts = [plain_text(title)]
+    description = plain_text(description)
+    for match in PROGRAMME.finditer(description):
+        snippet = description[match.start():match.start() + 350]
+        snippet = re.split(r'[!?]|\.(?:\s+(?=[A-ZÄÖÅ])|$)', snippet, maxsplit=1)[0]
+        context = description[max(0, match.start() - 80):match.start()] + snippet
+        if not re.search(r'\b(?:aiemmin|previously|not|ei|vuonna\s+(?:19|20)[0-9]{2})\b', context, re.I):
+            parts.append(snippet)
+    return ' '.join(parts)
+
+
+def notable_church_choir(title, description, config):
+    programme = normalized(programme_text(title, description))
+    for entry in config.get('filters', {}).get('church_choir_works', []):
+        composer, work = (normalized(part) for part in entry.split(':', 1))
+        composer_pattern = r'\b' + re.escape(composer) + r'(?:in|n)?\b'
+        work_pattern = r'\b' + r'\s*'.join(re.escape(word) for word in work.split()) + r'\b'
+        # A bare "Requiem" is insufficient: many composers wrote one. Other
+        # configured titles identify the requested work without an attribution.
+        if re.search(work_pattern, programme) and (work != 'requiem' or re.search(composer_pattern, programme)):
+            return True
+    return bool(LARGE_CHOIR_EVENT.search(programme_text(title, description)))
+
+
+def is_church_choir(title, description, tags):
+    return bool(CHOIR.search(title) or any(CHOIR.search(tag) for tag in tags)
+                or CHOIR_PERFORMANCE.search(description)
+                or any(CHOIR.search(sentence) and not re.search(
+                    r'\b(?:aiemmin|previously|kuorossa|sang\s+in|member\s+of)\b', sentence, re.I)
+                       for sentence in re.split(r'[.!?]', description)))
+
+
+def church_music_eligible(title, description, tags, venue, config):
+    church = CHURCH_VENUE.search(plain_text(venue).split(',', 1)[0])
+    notable = church and notable_church_choir(title, description, config)
+    choir = is_church_choir(title, description, tags)
+    if choir and config.get('filters', {}).get('church_choir_selection') == 'notable' and not notable:
+        return False
+    return bool(is_church_music(title, description, tags, venue) or notable)
 
 
 def is_church_music(title, description, tags, venue):
@@ -153,12 +208,17 @@ def exclusion_reason(title, description, source_categories, config, performance_
                 or has_allowed_theatre_language(title, description, preferences["theatre_languages"])):
             return "theatre without confirmed allowed performance language"
     music_tags = set(config.get("category_mapping", {}).get("music", []))
+    if (preferences.get('church_choir_selection') == 'notable'
+            and CHURCH_VENUE.search(plain_text(venue).split(',', 1)[0])
+            and is_church_choir(title, description, tags)
+            and not notable_church_choir(title, description, config)):
+        return 'church choir without a recognized work or large-scale programme'
     if tags.intersection(music_tags) and preferences.get("music_selection") == "curated":
         artists = preferences.get("music_artists", [])
         venues = preferences.get("music_venues", [])
         if not (any(re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.I) for artist in artists)
                 or venue_matches(venue, venues)
-                or (preferences.get("allow_church_music") and is_church_music(title, description, tags, venue))):
+                or (preferences.get("allow_church_music") and church_music_eligible(title, description, tags, venue, config))):
             return "music outside curated artists or venues"
     return None
 
