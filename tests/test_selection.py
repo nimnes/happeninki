@@ -129,13 +129,33 @@ class SelectionTests(unittest.TestCase):
         ranked, _ = rank_pending(self.store, self.pending(events), self.config, TODAY, HASHES)
         self.assertEqual(len(ranked), 3)
 
-    def test_interest_floor_preserves_selected_retries_and_updates(self):
-        low = event(performance_languages=['fi'])
-        pending = self.pending([low])
+    def test_changed_interest_floor_blocks_new_language_but_preserves_updates(self):
+        original = event()
+        pending = self.pending([original])
         event_id = pending[0][0]
-        self.store.mark_published(event_id, 'ru', HASHES['ru'], 123, low.fingerprint)
+        self.store.mark_published(event_id, 'ru', HASHES['ru'], 123, original.fingerprint)
+        self.store.set_delivery(event_id, 'en', HASHES['en'], 'pending', original.fingerprint)
+        low = replace(original, performance_languages=['fi'])
+        pending = self.pending([low])
         ranked, _ = rank_pending(self.store, pending, self.config, TODAY, HASHES)
-        self.assertEqual({language for _, _, languages in ranked for language in languages}, {'en', 'ru'})
+        self.assertEqual({language for _, _, languages in ranked for language in languages}, {'ru'})
+
+    def test_pending_deliveries_reassess_changed_event_and_policy(self):
+        original = event()
+        pending = self.pending([original])
+        event_id = pending[0][0]
+        for language in HASHES:
+            self.store.set_delivery(event_id, language, HASHES[language], 'pending', original.fingerprint)
+        low = replace(original, title='Local band concert', description='Finnish-language concert.',
+                      performance_languages=['fi'])
+        pending = self.pending([low])
+        ranked, decisions = rank_pending(self.store, pending, self.config, TODAY, HASHES)
+        self.assertEqual(ranked, [])
+        self.assertEqual(decisions[event_id]['reason'], 'below minimum interest score')
+        pending = self.pending([original])
+        self.assertEqual(len(rank_pending(self.store, pending, self.config, TODAY, HASHES)[0]), 1)
+        self.config['selection']['minimum_score'] = score_event(original, self.config, TODAY)[0] + 1
+        self.assertEqual(rank_pending(self.store, pending, self.config, TODAY, HASHES)[0], [])
 
     def test_overflow_expires_but_far_future_waits(self):
         pending = self.pending([event(), event(2, start='2026-12-01', end='2026-12-02')])

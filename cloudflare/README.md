@@ -85,6 +85,9 @@ publishes no broken Save button. Changes and cancellations are reflected when th
 publisher updates the post; the list reflects the last synced catalogue, not live
 source availability. Cancelled events cannot be newly saved and existing saved
 cancellations are marked. Save buttons are removed from updated cancelled posts.
+Recurring schedules retain all dates, including historical occurrences. Catalogue
+requests are bounded to 1 MiB rather than a fixed occurrence count; Telegram
+webhook requests remain bounded to 64 KiB.
 
 A user may save up to 100 events. Duplicate saves (including the other channel's
 language version) update one entry. `/events` lists upcoming events chronologically,

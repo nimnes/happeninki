@@ -35,7 +35,7 @@ export function validEvent(e) {
     && [['title',200], ['summary',500], ['venue',200], ['municipality',100]].every(([key, max]) => typeof e[key] === 'string' && [...e[key]].length <= max)
     && e.title.trim() && validDate(e.start) && validDate(e.end) && Date.parse(e.end) >= Date.parse(e.start)
     && typeof e.date_only === 'boolean' && typeof e.cancelled === 'boolean'
-    && Array.isArray(e.dates) && e.dates.length <= 100
+    && Array.isArray(e.dates)
     && e.dates.every(d => validDate(d.start) && validDate(d.end) && Date.parse(d.end) >= Date.parse(d.start));
 }
 export function nextOccurrence(event, now = new Date()) {
@@ -146,13 +146,13 @@ export async function handleUpdate(update, env) {
     [[{text:words[language].yes,callback_data:`delete_${language}`},listButton(language)]]);
   return send(env,user,words[language].intro,[[listButton(language)]]);
 }
-async function readJson(request) {
+async function readJson(request, maxBytes) {
   const reader=request.body?.getReader();
   if (!reader) throw new Error('Bad body');
   const chunks=[]; let size=0;
   while (true) {
     const {done,value}=await reader.read(); if (done) break;
-    size+=value.length; if(size>65536) {await reader.cancel();throw new Error('Bad body');}
+    size+=value.length; if(size>maxBytes) {await reader.cancel();throw new Error('Bad body');}
     chunks.push(value);
   }
   const bytes=new Uint8Array(size);let offset=0;
@@ -174,7 +174,8 @@ export default {
     if(!secret || !env.DB || !env.TELEGRAM_BOT_TOKEN) return new Response('Not configured',{status:503});
     if(supplied!==(path==='/events' ? `Bearer ${secret}` : secret)) return new Response('Unauthorized',{status:401});
     let body;
-    try {body=await readJson(request);} catch {return new Response('Invalid JSON',{status:400});}
+    // Public catalogue schedules can span years; Telegram updates stay small.
+    try {body=await readJson(request, path==='/events' ? 1048576 : 65536);} catch {return new Response('Invalid JSON',{status:400});}
     try {
       if(path==='/events') {
         if(!validEvent(body)) return new Response('Invalid event',{status:400});

@@ -183,6 +183,18 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(self.publish([], Translator(), telegram), (0, 0))
         self.assertEqual(telegram.calls, [])
 
+    def test_deadline_during_checkpoint_keeps_digest_retryable(self):
+        telegram = Telegram()
+        clock = [0]
+        def checkpoint(store):
+            if store.delivery_holds({'ru': channel_hash('ru')}):
+                clock[0] = 1000
+        with patch('happeninki.digest.time.monotonic', side_effect=lambda: clock[0]):
+            self.assertEqual(self.publish([event()], Translator(), telegram, checkpoint), (0, 0))
+        self.assertEqual(telegram.calls, [])
+        self.assertEqual(self.store.weekly_digest('2026-10-12', 'ru', channel_hash('ru'))['status'], 'pending')
+        self.assertEqual(self.store.delivery_holds({'ru': channel_hash('ru')}), [])
+
     def test_uncertain_digest_is_held_across_restart_and_can_be_resolved(self):
         class Sender(Telegram):
             channels = {'ru': 'ru'}

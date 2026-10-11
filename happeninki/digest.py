@@ -6,7 +6,7 @@ from dataclasses import asdict, replace
 from datetime import date, timedelta
 
 from .filters import event_exclusion_reason
-from .http import RemoteError
+from .http import RemoteError, RequestDeadlineExceeded
 from .models import safe_url
 from .selection import performance_key, score_event
 from .telegram import TelegramThrottled, channel_hash, date_range_label
@@ -162,7 +162,13 @@ def publish_digest(events, config, today, store, translator, telegram, checkpoin
         store.save_weekly_digest(start, language, channel, 'unknown', message)
         checkpoint(store)  # Hold before sending, including across lost receipt uploads.
         try:
+            if time.monotonic() >= deadline:
+                raise RequestDeadlineExceeded('Run budget exhausted during checkpoint')
             message_id = telegram.publish(language, message)
+        except RequestDeadlineExceeded:
+            store.save_weekly_digest(start, language, channel, 'pending', message)
+            checkpoint(store)
+            return sent, failures
         except (TelegramThrottled, RemoteError) as exc:
             if isinstance(exc, TelegramThrottled) or exc.status in {400, 401, 403, 404}:
                 store.save_weekly_digest(start, language, channel, 'pending', message)

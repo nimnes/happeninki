@@ -21,7 +21,26 @@ class RemoteError(RuntimeError):
         super().__init__(f"{service}: HTTP {status}" if status else f"{service}: network request failed")
 
 
+class RequestDeadlineExceeded(RuntimeError):
+    """No new request was started because the run budget was exhausted."""
+
+
 class HttpClient:
+    def __init__(self, deadline=None):
+        self.deadline = deadline
+
+    def remaining(self):
+        remaining = self.deadline - time.monotonic() if self.deadline is not None else None
+        if remaining is not None and remaining <= 0:
+            raise RequestDeadlineExceeded('Run budget exhausted')
+        return remaining
+
+    def retry_pause(self, delay):
+        remaining = self.remaining()
+        if remaining is not None and delay >= remaining:
+            raise RequestDeadlineExceeded('Insufficient run budget for retry')
+        time.sleep(delay)
+
     def request(self, url, *, method="GET", body=None, headers=None, service="Source",
                 timeout=45, retry=True, raw=False):
         payload = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode() if body is not None else None
@@ -32,9 +51,11 @@ class HttpClient:
         request_headers.update(headers or {})
         attempts = 3 if retry else 1
         for attempt in range(attempts):
+            remaining = self.remaining()
+            request_timeout = min(timeout, remaining) if remaining is not None else timeout
             try:
                 request = Request(url, data=payload, headers=request_headers, method=method)
-                with build_opener(SafeRedirects()).open(request, timeout=timeout) as response:
+                with build_opener(SafeRedirects()).open(request, timeout=request_timeout) as response:
                     data = response.read()
                 return data if raw else json.loads(data) if data else None
             except HTTPError as exc:
@@ -55,10 +76,10 @@ class HttpClient:
                     raise error from None
                 if after and after > 30:
                     raise error from None
-                time.sleep(after or 2 ** attempt)
+                self.retry_pause(after or 2 ** attempt)
             except (URLError, TimeoutError, OSError):
                 if attempt == attempts - 1:
                     raise RemoteError(service) from None
-                time.sleep(2 ** attempt)
+                self.retry_pause(2 ** attempt)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 raise RuntimeError(f"{service}: invalid JSON response") from None

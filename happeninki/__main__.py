@@ -11,7 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config import load_config
-from .http import HttpClient, RemoteError
+from .http import HttpClient, RemoteError, RequestDeadlineExceeded
 from .models import next_month
 from .releases import ReleaseState
 from .sources import collect
@@ -26,6 +26,10 @@ LOG = logging.getLogger("happeninki")
 
 
 def publish_pending(store, config, translator, telegram, today, checkpoint, deadline, now=None, blocked_sources=(), classifier=None):
+    for component in (translator, telegram, getattr(telegram, 'favourites', None), classifier):
+        client = getattr(component, 'http', None)
+        if isinstance(client, HttpClient):
+            client.deadline = deadline
     enabled_languages = [language for language in config["languages"] if telegram.channels.get(language)]
     hashes = {language: channel_hash(telegram.channels[language]) for language in enabled_languages}
     selection = config.get('selection', {})
@@ -70,6 +74,8 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 if translation is None:
                     translation = translator.translate(event, language)
                     store.cache_translation(event, language, translation)
+                if time.monotonic() >= deadline:
+                    raise RequestDeadlineExceeded('Run budget exhausted during translation')
                 reply_markup = telegram.prepare_event(event, translation, language) if hasattr(telegram, 'prepare_event') else None
                 photo = bool(image_url) or message_kind == "photo"
                 try:
@@ -79,6 +85,9 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                         raise
                     image_url = ""
                     message = build_message(event, translation, language, today)
+            except RequestDeadlineExceeded:
+                checkpoint(store)
+                return sent, failures
             except TranslationUnavailable:
                 LOG.error("Ollama is unavailable or its allowance is exhausted; remaining events stay queued")
                 checkpoint(store)
@@ -87,6 +96,9 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 LOG.error("Translation/formatting failed for %s (%s): %s", event.source_key, language, exc)
                 failures += 1
                 continue
+            if time.monotonic() >= deadline:
+                checkpoint(store)
+                return sent, failures
             publication = store.publication(event_id, language, hashes[language])
             reservation = None
             if not publication and selection.get('enabled'):
@@ -100,6 +112,8 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                     extra['reply_markup'] = reply_markup
                 for attempt in range(4):
                     try:
+                        if time.monotonic() >= deadline:
+                            raise RequestDeadlineExceeded('Run budget exhausted before send')
                         current_day = datetime.now(ZoneInfo(config['timezone'])).date()
                         if reservation and current_day != quota_day:
                             store.finish_reservation(reservation, 'released')
@@ -113,6 +127,8 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                             # lost reply must not cause a resend in the next run.
                             store.set_delivery(event_id, language, hashes[language], 'unknown', event.fingerprint)
                             checkpoint(store)
+                        if time.monotonic() >= deadline:
+                            raise RequestDeadlineExceeded('Run budget exhausted during checkpoint')
                         message_id = telegram.publish(language, message, publication["message_id"] if publication else None, **extra)
                         break
                     except TelegramThrottled as exc:
@@ -133,6 +149,13 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                             pause = min(remaining, 60)
                             time.sleep(pause)
                             remaining -= pause
+            except RequestDeadlineExceeded:
+                if not publication:
+                    store.set_delivery(event_id, language, hashes[language], 'pending', event.fingerprint)
+                if reservation:
+                    store.finish_reservation(reservation, 'released')
+                checkpoint(store)
+                return sent, failures
             except Exception as exc:
                 # A transport timeout can mean Telegram accepted the message.
                 # Stop the run; never repeatedly submit it in this run.
@@ -201,8 +224,10 @@ def run(args):
         LOG.info('Weekly digest not due: publication is enabled only on Sundays')
         return 0
     deadline = time.monotonic() + config["run_budget_seconds"]
+    http.deadline = deadline
     channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "").strip() for language in config["languages"]}
-    remote = ReleaseState(http, os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
+    # Receipts and released holds must still be persisted after the work deadline.
+    remote = ReleaseState(HttpClient(), os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
     needs_translation = (args.mode == 'publish' and (not digest_only or os.getenv('OLLAMA_API_KEY'))) or args.translate
     translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if needs_translation else None
     from .favourites import Favourites

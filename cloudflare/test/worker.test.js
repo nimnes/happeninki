@@ -134,8 +134,23 @@ test('expired favourites free capacity without requiring delete-all',async()=>{
   await update(101,`/start save_en_${'b'.repeat(32)}`);
   assert.equal(db.prepare('SELECT event_id FROM favourites').get().event_id,'b'.repeat(32));
 });
+test('large recurring schedules preserve future dates and accept cancellation updates',async()=>{
+  const dates=Array.from({length:1000},(_,i)=>{
+    const start=new Date(Date.UTC(2099,0,1+i,17));
+    return {start:start.toISOString(),end:new Date(start.getTime()+3600000).toISOString()};
+  });
+  const schedule={start:dates[0].start,end:dates.at(-1).end,dates};
+  await register(schedule);
+  assert.deepEqual(JSON.parse(db.prepare('SELECT dates FROM events').get().dates),dates);
+  await update(101,`/start save_en_${eventId}`);
+  assert.match(sent.at(-1).text,/Saved/);
+  await register({...schedule,cancelled:true});
+  await update(101,'/events');
+  assert.match(sent.at(-1).text,/Cancelled/);
+});
 test('oversized body and wrong methods are rejected',async()=>{
-  assert.equal((await request('/events',{big:'a'.repeat(66000)})).status,400);
+  assert.equal((await request('/events',{big:'a'.repeat(1048576)})).status,400);
+  assert.equal((await request('/telegram',{update_id:99,big:'a'.repeat(66000)})).status,400);
   assert.equal((await worker.fetch(new Request('https://worker.example/events'),env)).status,405);
 });
 test('an expired callback acknowledgement does not block removal',async()=>{

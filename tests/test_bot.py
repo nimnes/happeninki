@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from happeninki.__main__ import publish_pending, run
 from happeninki.config import load_config as load_production_config
-from happeninki.http import RemoteError
+from happeninki.http import RemoteError, RequestDeadlineExceeded
 from happeninki.models import Event, next_month
 from happeninki.releases import ReleaseState
 from happeninki.sources import TampereSource, parse_syo, parse_tampere
@@ -372,6 +372,57 @@ class PipelineTests(unittest.TestCase):
                 row = next(row for row in self.store.pending(TODAY, [other], HASHES)
                            if row[1].source_id == language)
                 self.assertEqual(row[2], [other])
+
+
+class PublicationDeadlineTests(unittest.TestCase):
+    def test_release_persistence_is_not_blocked_by_work_deadline(self):
+        args = SimpleNamespace(config='config.toml', mode='preview', release_state=True)
+        with patch('happeninki.__main__.ReleaseState', side_effect=RuntimeError('stop before networking')) as remote:
+            with self.assertRaisesRegex(RuntimeError, 'stop before networking'):
+                run(args)
+        client = remote.call_args.args[0]
+        with patch('happeninki.http.time.monotonic', return_value=float('inf')):
+            self.assertIsNone(client.remaining())
+
+    def test_budget_exhaustion_defers_without_quota_or_false_hold(self):
+        for phase in ('translation', 'registration', 'checkpoint', 'request'):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                store = Store(Path(directory) / 'events.db')
+                store.ingest([event()], TODAY, next_month(TODAY))
+                clock = [0]
+                class Translator:
+                    def translate(self, item, language):
+                        if phase == 'translation':
+                            clock[0] = 20
+                        return {'title': 'Jazz concert', 'summary': 'Summary'}
+                class Sender:
+                    channels = {'ru': 'ru'}
+                    sent = 0
+                    registered = 0
+                    def prepare_event(self, *args):
+                        self.registered += 1
+                        if phase == 'registration':
+                            clock[0] = 20
+                    def publish(self, *args, **kwargs):
+                        if phase == 'request':
+                            raise RequestDeadlineExceeded('No request started')
+                        self.sent += 1
+                        return 123
+                def checkpoint(current):
+                    if phase == 'checkpoint' and current.delivery_holds({'ru': HASHES['ru']}):
+                        clock[0] = 20
+                sender = Sender()
+                with patch('happeninki.__main__.time.monotonic', side_effect=lambda: clock[0]):
+                    result = publish_pending(store, load_config(), Translator(), sender, TODAY, checkpoint, 10)
+                self.assertEqual(result, (0, 0))
+                self.assertEqual(sender.sent, 0)
+                if phase == 'translation':
+                    self.assertEqual(sender.registered, 0)
+                self.assertEqual(store.delivery_holds({'ru': HASHES['ru']}), [])
+                actual_day = datetime.now(ZoneInfo(load_config()['timezone'])).date()
+                self.assertEqual(store.quota_used(actual_day, HASHES['ru']), 0)
+                self.assertEqual(len(store.pending(TODAY, ['ru'], HASHES)), 1)
+                store.close()
 
 
 class ReleaseTests(unittest.TestCase):

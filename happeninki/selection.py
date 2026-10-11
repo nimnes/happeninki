@@ -120,7 +120,7 @@ def rank_pending(store, pending, config, today, hashes, now=None):
             status, reason = 'skipped', 'no upcoming occurrence'
         elif lead > config['selection']['lead_days']:
             status, reason = 'scheduled', 'outside publication window'
-        elif score < config['selection'].get('minimum_score', 0) and not delivery_selected:
+        elif score < config['selection'].get('minimum_score', 0):
             status, reason = 'rejected', 'below minimum interest score'
         elif age >= config['selection']['reconsider_days'] and not delivery_selected:
             status, reason = 'skipped', 'reconsideration window expired'
