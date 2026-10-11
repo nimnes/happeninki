@@ -20,7 +20,7 @@ SUNDAY = date(2026, 10, 11)
 
 
 def event(number=1, **changes):
-    result = Event(source='tampere', source_id=str(number), title=f'Concert {number}', description='A jazz concert.',
+    result = Event(source='tampere', source_id=str(number), title=f'Jazz concert {number}', description='A jazz concert.',
                    url=f'https://example.com/events/{number}', municipality='Tampere', venue='G Livelab',
                    address='G Livelab, Puutarhakatu 1', category='music', source_categories=['music'],
                    start='2026-10-15T19:00:00+03:00', end='2026-10-15T21:00:00+03:00', dates=[])
@@ -66,6 +66,19 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(next_week(SUNDAY), (date(2026, 10, 12), date(2026, 10, 18)))
         self.assertEqual(next_week(date(2026, 12, 27)), (date(2026, 12, 28), date(2027, 1, 3)))
         self.assertEqual(next_week(date(2026, 10, 12))[0], date(2026, 10, 19))
+
+    def test_digest_uses_interest_floor_and_language_priority(self):
+        low = event(1, performance_languages=['fi'])
+        english = event(2, performance_languages=['en'])
+        museum = event(3, category='exhibitions', source_categories=['exhibitions'])
+        self.assertEqual(shortlist([low], self.config, SUNDAY, 'en'), [])
+        selected = shortlist([low, museum, english], self.config, SUNDAY, 'en')
+        self.assertEqual([entry.source_id for entry, _ in selected], ['2', '3'])
+
+    def test_digest_excludes_venue_only_music_and_explicit_example(self):
+        generic = event(title='Local bands anniversary', description='Several local bands perform.')
+        excluded = event('6a07df00fafad1b3a6929427', performance_languages=['en'])
+        self.assertEqual(shortlist([generic, excluded], self.config, SUNDAY, 'en'), [])
 
     def test_top_ten_use_preferences_and_remove_duplicates(self):
         entries = [event(i) for i in range(12)]

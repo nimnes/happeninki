@@ -24,7 +24,7 @@ HASHES = {'en': channel_hash('en'), 'ru': channel_hash('ru')}
 
 
 def event(number=1, **changes):
-    result = Event(source='tampere', source_id=str(number), title=f'Concert {number}', description='Jazz concert',
+    result = Event(source='tampere', source_id=str(number), title=f'Jazz concert {number}', description='Jazz concert',
                    url='https://example.com/event', municipality='Tampere', venue='G Livelab',
                    address='G Livelab, Puutarhakatu 1', category='music', start='2026-10-20T19:00:00+03:00',
                    end='2026-10-20T21:00:00+03:00', dates=[], source_categories=['music'])
@@ -72,6 +72,70 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(components['preference_fit'], 30)
         self.assertEqual(components['programme_context'], 0)
         self.assertGreater(score_event(notable, self.config, TODAY)[0], score)
+
+    def test_explicit_performance_language_changes_priority(self):
+        ordinary = event()
+        baseline = score_event(ordinary, self.config, TODAY)[0]
+        for language in ('en', 'ru'):
+            self.assertGreater(score_event(replace(ordinary, performance_languages=[language]), self.config, TODAY)[0], baseline)
+        self.assertLess(score_event(replace(ordinary, description='Esityskieli: suomi'), self.config, TODAY)[0], baseline)
+        self.assertGreater(score_event(replace(ordinary, description='Songs are sung in English.'), self.config, TODAY)[0], baseline)
+        for description in ('English website available. Finnish artist.', 'Not performed in English.',
+                            'Previously performed in English.'):
+            self.assertEqual(score_event(replace(ordinary, description=description), self.config, TODAY)[0], baseline)
+        # Translation/delivery language is independent of the actual performance.
+        self.assertEqual(score_event(replace(ordinary, delivery_languages=['ru']), self.config, TODAY)[0], baseline)
+        self.assertEqual(score_event(replace(ordinary, performance_languages=['fi', 'en']), self.config, TODAY)[0], baseline + 20)
+
+    def test_venue_alone_does_not_make_local_bands_interesting(self):
+        concert = event(title='Local bands anniversary night', description='A record label anniversary with several bands.')
+        self.assertLess(score_event(concert, self.config, TODAY)[0], self.config['selection']['minimum_score'])
+        for changes in ({'performance_languages': ['en']}, {'performance_languages': ['ru']},
+                        {'venue': 'Nokia Arena', 'address': 'Nokia Arena'}, {'title': 'Classical concert'}):
+            self.assertGreaterEqual(score_event(replace(concert, **changes), self.config, TODAY)[0], self.config['selection']['minimum_score'])
+        self.config['filters']['music_artists'] = ['Local bands']
+        self.assertGreaterEqual(score_event(concert, self.config, TODAY)[0], self.config['selection']['minimum_score'])
+
+    def test_explicit_example_stays_excluded_even_if_text_changes(self):
+        concert = event('6a07df00fafad1b3a6929427', title='Hiljaiset Levyt 40 vuotta -juhlakeikka',
+                        description='Record label anniversary concert.', performance_languages=['en'])
+        ranked, decisions = rank_pending(self.store, self.pending([concert]), self.config, TODAY, HASHES)
+        self.assertEqual(ranked, [])
+        self.assertEqual(next(iter(decisions.values()))['reason'], 'explicitly excluded event')
+
+    def test_major_finnish_concerts_retain_priority(self):
+        for changes in ({'venue': 'Nokia Arena', 'address': 'Nokia Arena'},
+                        {'title': 'Kuoro: Mozartin Requiem', 'venue': 'Tuomiokirkko', 'address': 'Tuomiokirkko'}):
+            concert = event(**changes)
+            self.assertEqual(score_event(concert, self.config, TODAY)[0],
+                             score_event(replace(concert, performance_languages=['fi']), self.config, TODAY)[0])
+        self.config['filters']['music_artists'] = ['Favourite']
+        concert = event(title='Favourite', venue='Small hall', address='Small hall')
+        self.assertEqual(score_event(concert, self.config, TODAY)[0],
+                         score_event(replace(concert, performance_languages=['fi']), self.config, TODAY)[0])
+
+    def test_minimum_interest_does_not_fill_spare_slots(self):
+        low = event(performance_languages=['fi'])
+        generic = event(2, category='culture', source_categories=['culture'])
+        ranked, decisions = rank_pending(self.store, self.pending([low, generic]), self.config, TODAY, HASHES)
+        self.assertEqual(ranked, [])
+        self.assertEqual({info['reason'] for info in decisions.values()}, {'below minimum interest score'})
+        self.assertEqual(self.store.quota_used(TODAY, HASHES['en']), 0)
+
+    def test_exhibitions_learning_and_campaigns_remain_eligible(self):
+        events = [event(1, category='exhibitions', source_categories=['exhibitions'], performance_languages=['fi']),
+                  event(2, title='Puhutaan suomea', category='language_learning', source_categories=[], performance_languages=['fi']),
+                  event(3, source='syo', category='food', source_categories=['food and beverage'])]
+        ranked, _ = rank_pending(self.store, self.pending(events), self.config, TODAY, HASHES)
+        self.assertEqual(len(ranked), 3)
+
+    def test_interest_floor_preserves_selected_retries_and_updates(self):
+        low = event(performance_languages=['fi'])
+        pending = self.pending([low])
+        event_id = pending[0][0]
+        self.store.mark_published(event_id, 'ru', HASHES['ru'], 123, low.fingerprint)
+        ranked, _ = rank_pending(self.store, pending, self.config, TODAY, HASHES)
+        self.assertEqual({language for _, _, languages in ranked for language in languages}, {'en', 'ru'})
 
     def test_overflow_expires_but_far_future_waits(self):
         pending = self.pending([event(), event(2, start='2026-12-01', end='2026-12-02')])

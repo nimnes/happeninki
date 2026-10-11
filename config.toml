@@ -40,6 +40,8 @@ church_choir_works = [
 theatre_languages = ["en", "ru"]  # Require explicit performance language; [] allows any language.
 # Additional exact source category names, e.g. "dance" or "comedy".
 excluded_source_categories = []
+# Explicit examples that should never be selected, even if their source text changes.
+excluded_source_keys = ["tampere:6a07df00fafad1b3a6929427"]
 # Additional words/phrases to exclude from event titles, case-insensitive.
 exclude_title_keywords = []
 
@@ -89,6 +91,9 @@ performance_languages = ["ru"]
 [selection]
 enabled = true
 daily_limit = 7
+minimum_score = 50
+# These venues provide evidence of a major concert, unlike the broader allowed list.
+major_music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli"]
 lead_days = 30
 reconsider_days = 3
 classifier_mode = "shadow"

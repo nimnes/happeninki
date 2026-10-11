@@ -224,6 +224,8 @@ def exclusion_reason(title, description, source_categories, config, performance_
 
 
 def event_exclusion_reason(event, config):
+    if event.source_key in config.get('filters', {}).get('excluded_source_keys', []):
+        return 'explicitly excluded event'
     municipalities = config["sources"].get(event.source, {}).get("municipalities", config["municipalities"])
     if event.municipality not in municipalities or event.category not in config["categories"]:
         return "area or category"

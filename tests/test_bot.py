@@ -34,7 +34,7 @@ HASHES = {language: channel_hash(language) for language in ("ru", "en")}
 
 
 def event(**kwargs):
-    defaults = dict(source="test", source_id="1", title="Test concert", description="A concert",
+    defaults = dict(source="test", source_id="1", title="Test jazz concert", description="A concert",
                     url="https://example.org/event", municipality="Tampere", venue="Venue",
                     address="Venue, Street 1", category="music", start="2026-10-20T19:00:00+03:00",
                     end="2026-10-20T21:00:00+03:00", dates=[])
@@ -352,7 +352,7 @@ class PipelineTests(unittest.TestCase):
     def test_only_configured_language_is_translated_and_sent(self):
         for language in ("ru", "en"):
             with self.subTest(language=language):
-                item = event(source_id=language, title=f"Concert {language}")
+                item = event(source_id=language, title=f"Jazz concert {language}")
                 self.ingest([item])
                 calls = []
                 class Sender:

@@ -106,16 +106,43 @@ campaign when the next one becomes available.
 ## Event selection and comparison
 
 The approved music venues, favourite-artist list and church classical/choir/jazz
-exception still determine music eligibility. Ranking then favors stated church
-music preferences, approved programme contexts, complete location information
-and useful lead time. Its points express ordering, not popularity or probabilities.
-There is no internet popularity lookup and no minimum-score gate in this first
-version; these require evaluation before changing the approved eligibility rules.
+exception still determine music eligibility. Ranking favors explicit English or
+Russian performance language (+20), stated church music preferences, approved
+concert venues, complete location information and useful lead time. A listing
+written in English or Russian does not establish its performance language.
+Explicit Finnish-language music and cultural performances lose 20 points unless
+the concert is at a configured major venue, features a favourite artist, or is
+a church concert with a recognized work or large-scale programme. Unknown
+performance language gets no language bonus or penalty. The existing theatre
+language exclusions still apply.
+
+An approved venue alone is insufficient evidence of an interesting concert:
+music without a favourite artist, major venue, eligible church programme, or
+explicit jazz/classical programme loses 15 points. This normally places concerts
+with unknown performance language below the threshold, even at G Livelab,
+Tullikamari or Tavara-asema. Explicit English/Russian performance evidence can
+still lift their score above the threshold. Jazz/classical programme evidence
+comes from titles, source categories or programme statements, rather than an
+artist biography. `filters.excluded_source_keys` lists specifically unwanted
+events by `source:id`; these are excluded from daily new posts and digests even
+if their descriptions change.
+
+New events must reach `selection.minimum_score` (50 by default in this project's
+configuration). Seven is a daily maximum, never a target: a run can select fewer
+events or none. Generic cultural listings without additional interest evidence
+normally fall below the threshold. Exhibitions, Finnish-learning activities and
+SYÖ! campaigns receive 10 interest points to preserve their visibility. These
+points express editorial preferences, not measured popularity or probabilities;
+there is no internet popularity lookup. The same minimum and language priorities
+apply to the weekly digest. Already selected deliveries can finish retrying and
+previously published posts can receive updates even below the new threshold.
 Duplicate listings with the same normalized title, city, venue and occurrence
 starts compete for one post, even when their advertised end times differ.
 
-The `[selection]` settings control the seven-post limit, 30-day notice window,
-three-day reconsideration period and advisory classifier. `enabled = false`
+The `[selection]` settings control the seven-post limit, minimum score, major
+concert venue list, 30-day notice window, three-day reconsideration period and
+advisory classifier. `minimum_score = 0` disables the interest threshold.
+`enabled = false`
 restores the original queue behavior; `classifier_mode = "off"` disables only
 model classification. Classification uses the configured Ollama model and key,
 with at most five candidate classifications per run. It extracts audience, format
