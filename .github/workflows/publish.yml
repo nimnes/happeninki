@@ -4,7 +4,9 @@ on:
   schedule:
     - cron: "0 9 * * *"
       timezone: "Europe/Helsinki"
-    - cron: "0 18 * * 0"
+    - cron: "0 12 * * 0"
+      timezone: "Europe/Helsinki"
+    - cron: "0 8 * * 1"
       timezone: "Europe/Helsinki"
   workflow_dispatch:
     inputs:
@@ -14,7 +16,7 @@ on:
         options: [preview, publish]
         default: preview
       weekly_digest:
-        description: "Only preview/publish next week's digest from saved events (publish on Sunday)"
+        description: "Weekly digest from saved events (Sunday or Monday catch-up)"
         type: boolean
         default: false
       initialize:
@@ -46,7 +48,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  daytime:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.window.outputs.allowed }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check Helsinki daytime window
+        id: window
+        run: python3 -m happeninki.schedule
   verify-favourites:
+    needs: daytime
+    if: needs.daytime.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,14 +97,14 @@ jobs:
       - name: Collect and publish events
         env:
           REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
-          WEEKLY_DIGEST: ${{ inputs.weekly_digest || github.event.schedule == '0 18 * * 0' }}
+          WEEKLY_DIGEST: ${{ inputs.weekly_digest || github.event.schedule == '0 12 * * 0' || github.event.schedule == '0 8 * * 1' }}
           INITIALIZE: ${{ inputs.initialize || false }}
           TRANSLATE_PREVIEW: ${{ inputs.translate_preview || false }}
           CLASSIFY_PREVIEW: ${{ inputs.classify_preview || false }}
           RESET_STATE: ${{ inputs.reset_state || false }}
           REQUEUE_UPCOMING: ${{ inputs.requeue_upcoming || false }}
         run: |
-          args=(--mode "$REQUESTED_MODE" --release-state)
+          args=(--mode "$REQUESTED_MODE" --release-state --daytime-only)
           if [ "$WEEKLY_DIGEST" = "true" ]; then args+=(--weekly-digest); fi
           if [ "$INITIALIZE" = "true" ]; then args+=(--initialize); fi
           if [ "$TRANSLATE_PREVIEW" = "true" ]; then args+=(--translate); fi

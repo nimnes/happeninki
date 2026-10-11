@@ -20,6 +20,13 @@ def next_week(today):
     return start, start + timedelta(days=6)
 
 
+def digest_week(today):
+    # Monday retries refer to Sunday's intended week, not the following week.
+    if today.weekday() == 0:
+        return today, today + timedelta(days=6)
+    return next_week(today)
+
+
 def weekly_event(event, start, end):
     """Project occurrences into the week without changing stored event history."""
     if not event.overlaps(start, end):
@@ -34,7 +41,7 @@ def weekly_event(event, start, end):
 
 
 def shortlist(events, config, today, language):
-    start, end = next_week(today)
+    start, end = digest_week(today)
     candidates = []
     for event in events:
         if (not config['sources'].get(event.source, {}).get('enabled', False)
@@ -65,8 +72,9 @@ def shortened(text, limit):
     return text if len(text) <= limit else text[:limit - 1].rstrip() + '…'
 
 
-def build_digest(entries, language, start, end):
-    heading = {'en': 'Next week', 'ru': 'На следующей неделе'}[language]
+def build_digest(entries, language, start, end, catch_up=False):
+    headings = {'en': 'This week', 'ru': 'На этой неделе'} if catch_up else {'en': 'Next week', 'ru': 'На следующей неделе'}
+    heading = headings[language]
     header = f'📅 <b>{heading} · {start:%d.%m.%Y}–{end:%d.%m.%Y}</b>'
     # Keep one Telegram message. Shorten individual descriptions first, then omit
     # the lowest-ranked entries if unusually long URLs still exceed the limit.
@@ -93,7 +101,7 @@ def build_digest(entries, language, start, end):
 
 
 def preview_digest(events, config, today, languages, store, translator=None):
-    start, end = next_week(today)
+    start, end = digest_week(today)
     result = {'week_start': str(start), 'week_end': str(end), 'channels': {}}
     for language in languages:
         selected = shortlist(events, config, today, language)
@@ -110,14 +118,14 @@ def preview_digest(events, config, today, languages, store, translator=None):
                     translation = {'title': event.title, 'summary': event.description}
                     untranslated = True
             entries.append((event, translation))
-        channel['message'], channel['included_events'] = build_digest(entries, language, start, end)
+        channel['message'], channel['included_events'] = build_digest(entries, language, start, end, catch_up=today.weekday() == 0)
         channel['untranslated_source_fallback'] = untranslated
         result['channels'][language] = channel
     return result
 
 
 def publish_digest(events, config, today, store, translator, telegram, checkpoint, deadline):
-    start, end = next_week(today)
+    start, end = digest_week(today)
     sent, failures = 0, 0
     for language in config['languages']:
         if not telegram.channels.get(language):
@@ -149,7 +157,7 @@ def publish_digest(events, config, today, store, translator, telegram, checkpoin
                     translation = translator.translate(event, language)
                     store.cache_translation(event, language, translation)
                 entries.append((event, translation))
-            message, count = build_digest(entries, language, start, end)
+            message, count = build_digest(entries, language, start, end, catch_up=today.weekday() == 0)
             if not message:
                 raise ValueError('Digest links cannot fit in a single Telegram message')
         except Exception as exc:

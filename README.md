@@ -41,11 +41,21 @@ Google Maps address, and a link to the original listing. Dates and location appe
 in separate blocks. Postal codes and repeated city names are removed; paid prices
 and price ranges are shown, while zero-euro prices are hidden.
 
-Every **Sunday at 18:00 Helsinki time**, a separate run publishes a digest for the
+Every **Sunday at 12:00 Helsinki time**, a separate run publishes a digest for the
 following **Monday–Sunday**. Each enabled language channel receives one text
 message with up to ten ranked events, clickable event titles linking to their
 sources, short summaries, dates and venues. Ongoing museum exhibitions are eligible.
 The digest is one additional weekly message alongside the daily event posts.
+At **08:00 on Monday**, a catch-up run sends any missing channel digest for that
+Monday–Sunday week. Successfully sent digests are never repeated. If a previous
+send has an uncertain outcome, it remains held for manual resolution.
+
+Scheduled and manual workflow runs do work only **08:00–22:00 Helsinki time**.
+Outside that window, a short time-check job runs and skips the remaining jobs.
+The bot checks the time again when it starts and stops starting new requests or
+posts at 22:00; publication receipts can still be saved safely. Nighttime runs
+are skipped. The weekly digest has its Monday catch-up; daily posts continue at
+09:00 on the next scheduled day.
 
 The digest reads the saved events database, without fetching event calendars again.
 It uses the usual preferences and ranking, including the stricter church choir
@@ -74,7 +84,7 @@ python -m happeninki --mode preview --weekly-digest --release-state --output dat
 Omit `--release-state` for an existing local database. Without `--translate`, the
 preview uses cached translations and labels any original-source fallback. Add
 `--translate` for a fully translated preview. Publishing with `--weekly-digest`
-is Sunday-only and sends the missing channel digests without individual posts.
+is allowed on Sunday or Monday and sends the missing channel digests without individual posts.
 
 When an event has a cover image, new posts include it above the description.
 Long summaries are shortened to fit a photo caption, keeping dates, location and

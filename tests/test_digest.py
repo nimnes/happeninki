@@ -3,14 +3,14 @@ import tempfile
 import time
 import unittest
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from happeninki.__main__ import run
 from happeninki.config import load_config
-from happeninki.digest import build_digest, next_week, preview_digest, publish_digest, shortlist
+from happeninki.digest import build_digest, digest_week, next_week, preview_digest, publish_digest, shortlist
 from happeninki.http import RemoteError
 from happeninki.models import Event, next_month
 from happeninki.store import Store
@@ -66,6 +66,46 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(next_week(SUNDAY), (date(2026, 10, 12), date(2026, 10, 18)))
         self.assertEqual(next_week(date(2026, 12, 27)), (date(2026, 12, 28), date(2027, 1, 3)))
         self.assertEqual(next_week(date(2026, 10, 12))[0], date(2026, 10, 19))
+        self.assertEqual(digest_week(date(2026, 10, 12)), digest_week(SUNDAY))
+        self.assertEqual(digest_week(date(2026, 12, 28)), digest_week(date(2026, 12, 27)))
+
+    def test_monday_catch_up_selects_current_week_and_is_not_repeated(self):
+        monday = date(2026, 10, 12)
+        entries = [event(1, start='2026-10-12T19:00:00+03:00', end='2026-10-12T21:00:00+03:00'),
+                   event(2, start='2026-10-18T19:00:00+03:00', end='2026-10-18T21:00:00+03:00'),
+                   event(3, start='2026-10-19T19:00:00+03:00', end='2026-10-19T21:00:00+03:00')]
+        sender = Telegram()
+        def catch_up():
+            return publish_digest(entries, self.config, monday, self.store, Translator(), sender,
+                                  lambda _: None, time.monotonic() + 600)
+        self.assertEqual(catch_up(), (2, 0))
+        self.assertEqual(catch_up(), (0, 0))
+        for language, message in sender.calls:
+            self.assertIn('This week' if language == 'en' else 'На этой неделе', message)
+            self.assertIn('12.10.2026–18.10.2026', message)
+            self.assertEqual(message.count('<a href='), 2)
+            self.assertNotIn('events/3', message)
+
+    def test_monday_only_sends_channels_missing_sunday_receipt(self):
+        sunday_sender = Telegram()
+        sunday_sender.channels = {'ru': 'ru'}
+        self.assertEqual(self.publish([event()], Translator(), sunday_sender), (1, 0))
+        monday_sender = Telegram()
+        self.assertEqual(publish_digest([event()], self.config, SUNDAY + timedelta(days=1), self.store,
+                         Translator(), monday_sender, lambda _: None, time.monotonic() + 600), (1, 0))
+        self.assertEqual([language for language, _ in monday_sender.calls], ['en'])
+
+    def test_monday_does_not_retry_uncertain_sunday_send(self):
+        class Uncertain(Telegram):
+            channels = {'ru': 'ru'}
+            def publish(self, *args):
+                raise TimeoutError('Outcome unknown')
+        self.assertEqual(self.publish([event()], Translator(), Uncertain()), (0, 1))
+        monday_sender = Telegram()
+        monday_sender.channels = {'ru': 'ru'}
+        self.assertEqual(publish_digest([event()], self.config, SUNDAY + timedelta(days=1), self.store,
+                         Translator(), monday_sender, lambda _: None, time.monotonic() + 600), (0, 1))
+        self.assertEqual(monday_sender.calls, [])
 
     def test_digest_uses_interest_floor_and_language_priority(self):
         low = event(1, performance_languages=['fi'])
@@ -259,6 +299,24 @@ class DigestTests(unittest.TestCase):
             self.assertEqual(run(args), 0)
         self.assertEqual(len(telegram.calls), 2)
         self.assertEqual(len(self.store.pending(SUNDAY, ['ru', 'en'], {'ru': channel_hash('ru'), 'en': channel_hash('en')})), 1)
+
+    def test_monday_workflow_publishes_saved_digest_without_collection(self):
+        self.store.ingest([event()], SUNDAY, next_month(SUNDAY))
+        for language in ('ru', 'en'):
+            self.store.cache_translation(event(), language, {'title': 'Event', 'summary': 'Summary'})
+        args = SimpleNamespace(config='config.toml', mode='publish', weekly_digest=True, translate=False,
+            daytime_only=True, release_state=False, database=str(self.path), initialize=False,
+            reset_state=False, requeue_upcoming=False)
+        sender = Telegram()
+        with patch('happeninki.__main__.collect', side_effect=AssertionError('No source requests')), \
+                patch('happeninki.__main__.Telegram', return_value=sender), \
+                patch('happeninki.__main__.datetime') as clock, \
+                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru', 'TELEGRAM_CHANNEL_EN': 'en', 'OLLAMA_API_KEY': ''}):
+            clock.now.return_value = datetime.fromisoformat('2026-10-12T08:00:00+03:00')
+            self.assertEqual(run(args), 0)
+        self.assertEqual(len(sender.calls), 2)
+        self.assertIsNotNone(self.store.weekly_digest('2026-10-12', 'ru', channel_hash('ru')))
+        self.assertIsNone(self.store.weekly_digest('2026-10-19', 'ru', channel_hash('ru')))
 
     def test_digest_preview_reads_database_without_collection_or_mutation(self):
         self.store.ingest([event()], SUNDAY, next_month(SUNDAY))

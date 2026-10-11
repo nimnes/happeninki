@@ -21,6 +21,7 @@ from .translator import TranslationUnavailable, Translator
 from .classifier import Classifier, comparison, PROMPT_VERSION
 from .selection import rank_pending, decision_key
 from .digest import preview_digest, publish_digest
+from .schedule import remaining_active_seconds
 
 LOG = logging.getLogger("happeninki")
 
@@ -218,12 +219,19 @@ def write_selection_report(config, report):
 def run(args):
     config = load_config(args.config)
     http = HttpClient()
-    today = datetime.now(ZoneInfo(config["timezone"])).date()
+    now = datetime.now(ZoneInfo(config["timezone"]))
+    today = now.date()
+    active_seconds = remaining_active_seconds(now) if getattr(args, 'daytime_only', False) else None
+    if active_seconds is not None and active_seconds <= 0:
+        LOG.info('Nighttime: workflow work is allowed only 08:00–22:00 Helsinki')
+        return 0
     digest_only = getattr(args, 'weekly_digest', False)
-    if digest_only and args.mode == 'publish' and (not config['digest']['enabled'] or today.weekday() != 6):
-        LOG.info('Weekly digest not due: publication is enabled only on Sundays')
+    if digest_only and args.mode == 'publish' and (not config['digest']['enabled'] or today.weekday() not in {6, 0}):
+        LOG.info('Weekly digest not due: publication is enabled on Sundays and Monday catch-up only')
         return 0
     deadline = time.monotonic() + config["run_budget_seconds"]
+    if active_seconds is not None:
+        deadline = min(deadline, time.monotonic() + active_seconds)
     http.deadline = deadline
     channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "").strip() for language in config["languages"]}
     # Receipts and released holds must still be persisted after the work deadline.
@@ -368,7 +376,8 @@ def main():
     parser.add_argument("--requeue-upcoming", action="store_true", help="Queue all collected upcoming events within the discovery horizon, preserving successful posts")
     parser.add_argument("--translate", action="store_true", help="Translate preview entries without publishing")
     parser.add_argument("--classify", action="store_true", help="Use Ollama for advisory preview classification")
-    parser.add_argument('--weekly-digest', action='store_true', help='Preview/publish next-week digest from saved events only; publication is Sunday-only')
+    parser.add_argument('--weekly-digest', action='store_true', help='Preview/publish weekly digest from saved events; Sunday publication or Monday catch-up')
+    parser.add_argument('--daytime-only', action='store_true', help='Allow work only 08:00–22:00 Helsinki, including manual workflow runs')
     parser.add_argument("--limit", type=int, default=10, help="Maximum preview entries")
     parser.add_argument("--output", default="data/preview.json")
     args = parser.parse_args()

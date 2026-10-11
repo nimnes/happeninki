@@ -74,7 +74,7 @@ when run from the repository root.
 
 ## Behaviour and verification
 
-New individual posts receive a localized **Save event** button. Sunday 18:00
+New individual posts receive a localized **Save event** button. Sunday 12:00
 weekly digests have source links only, with no save buttons. Existing posts
 gain buttons only when a normal event update is sent; this feature does not resend
 old events or rewrite channel history.
