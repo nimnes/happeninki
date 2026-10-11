@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "happeninki-favourites",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-11",
+  "workers_dev": true,
+  "observability": {"enabled": false},
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "happeninki-favourites",
+    "database_id": "REPLACE_WITH_DATABASE_ID",
+    "migrations_dir": "migrations"
+  }]
+}

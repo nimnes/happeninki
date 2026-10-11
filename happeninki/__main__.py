@@ -70,6 +70,7 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 if translation is None:
                     translation = translator.translate(event, language)
                     store.cache_translation(event, language, translation)
+                reply_markup = telegram.prepare_event(event, translation, language) if hasattr(telegram, 'prepare_event') else None
                 photo = bool(image_url) or message_kind == "photo"
                 try:
                     message = build_message(event, translation, language, today, 1024 if photo else 4096)
@@ -95,6 +96,8 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                     continue
             try:
                 extra = {"image_url": image_url, "message_kind": message_kind} if image_url or message_kind == "photo" else {}
+                if reply_markup is not None:
+                    extra['reply_markup'] = reply_markup
                 for attempt in range(4):
                     try:
                         current_day = datetime.now(ZoneInfo(config['timezone'])).date()
@@ -202,7 +205,9 @@ def run(args):
     remote = ReleaseState(http, os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
     needs_translation = (args.mode == 'publish' and (not digest_only or os.getenv('OLLAMA_API_KEY'))) or args.translate
     translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if needs_translation else None
-    telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels) if args.mode == "publish" else None
+    from .favourites import Favourites
+    telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels,
+                        favourites=Favourites.from_environment(http)) if args.mode == "publish" else None
     classifier = (Classifier(http, config['ollama'], os.getenv('OLLAMA_API_KEY'))
                   if config.get('selection', {}).get('classifier_mode') == 'shadow'
                   and os.getenv('OLLAMA_API_KEY') and (args.mode == 'publish' or getattr(args, 'classify', False)) else None)

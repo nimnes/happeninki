@@ -80,6 +80,20 @@ class DigestTests(unittest.TestCase):
         excluded = event('6a07df00fafad1b3a6929427', performance_languages=['en'])
         self.assertEqual(shortlist([generic, excluded], self.config, SUNDAY, 'en'), [])
 
+    def test_digest_has_no_save_buttons_or_favourites_dependency(self):
+        class WithFavourites(Telegram):
+            def prepare_event(self, *args):
+                raise AssertionError('Digests must not register favourites')
+            def publish(self, language, message, **kwargs):
+                if kwargs:
+                    raise AssertionError('Digests must not include a keyboard')
+                return super().publish(language, message)
+        sender = WithFavourites()
+        self.assertEqual(self.publish([event(i) for i in range(12)], Translator(), sender), (2, 0))
+        self.assertEqual(len(sender.calls), 2)
+        for _, message in sender.calls:
+            self.assertEqual(message.count('<a href='), 10)
+
     def test_top_ten_use_preferences_and_remove_duplicates(self):
         entries = [event(i) for i in range(12)]
         entries += [event(20, title='Kuoro: Mozartin Requiem', venue='Tuomiokirkko', address='Tuomiokirkko'),

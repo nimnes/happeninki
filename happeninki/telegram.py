@@ -97,7 +97,7 @@ def build_message(event, translation, language, today, max_length=4096):
 
 
 class Telegram:
-    def __init__(self, http, token, channels):
+    def __init__(self, http, token, channels, favourites=None):
         channels = {language: channel.strip() for language, channel in channels.items()
                     if language in {"ru", "en"} and channel and channel.strip()}
         if not token:
@@ -107,14 +107,20 @@ class Telegram:
         if len(channels) == 2 and channels["ru"] == channels["en"]:
             raise ValueError("Russian and English must use different Telegram channels")
         self.http, self.token, self.channels = http, token, channels
+        self.favourites = favourites
 
-    def publish(self, language, message, message_id=None, image_url="", message_kind="text"):
+    def prepare_event(self, event, translation, language):
+        return self.favourites.prepare(event, translation, language) if self.favourites else None
+
+    def publish(self, language, message, message_id=None, image_url="", message_kind="text", reply_markup=None):
         self.last_message_kind = "photo" if image_url or message_kind == "photo" else "text"
         method = "editMessageText" if message_id is not None else "sendMessage"
         payload = {"chat_id": self.channels[language], "text": message, "parse_mode": "HTML",
                    "link_preview_options": {"is_disabled": True}}
         if message_id is not None:
             payload["message_id"] = message_id
+        if reply_markup is not None:
+            payload['reply_markup'] = reply_markup
         if self.last_message_kind == "photo":
             payload.pop("text")
             payload.pop("link_preview_options")
@@ -138,7 +144,7 @@ class Telegram:
             if image_url and message_id is None and exc.status == 400 and any(
                     reason in exc.description.casefold() for reason in image_errors):
                 # A definite rejection is safe to replace with one text post.
-                return self.publish(language, message)
+                return self.publish(language, message, reply_markup=reply_markup)
             if message_id is not None and exc.status == 400 and exc.description.startswith("Bad Request: message is not modified"):
                 return message_id
             if exc.status != 429:

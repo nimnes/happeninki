@@ -25,6 +25,14 @@ when the source labels them only as exhibitions.
 
 ## How it works
 
+Optional personal favourites add a **⭐ Save event** button to individual event
+posts. Weekly digests have no save buttons. Each person gets their own private
+list in the bot chat, with upcoming events, source links and removal buttons.
+GitHub still publishes the feed; a Cloudflare Worker and private D1 database
+handle favourites. See [deployment and setup](cloudflare/README.md). No favourites
+are stored in the public GitHub release database. The feature stays disabled
+until its three GitHub settings are configured after deployment.
+
 Once a day, at **09:00 Helsinki time**, the bot checks its event sources, identifies
 new listings, ranks eligible events and publishes at most **seven new posts per
 channel per Helsinki day**. Each selected event receives a separate translated post.

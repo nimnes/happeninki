@@ -46,7 +46,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify-favourites:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify private favourites
+        run: node --test cloudflare/test/worker.test.js
   publish:
+    needs: verify-favourites
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -55,6 +67,9 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHANNEL_RU: ${{ secrets.TELEGRAM_CHANNEL_RU }}
       TELEGRAM_CHANNEL_EN: ${{ secrets.TELEGRAM_CHANNEL_EN }}
+      TELEGRAM_BOT_USERNAME: ${{ vars.TELEGRAM_BOT_USERNAME }}
+      FAVOURITES_WORKER_URL: ${{ vars.FAVOURITES_WORKER_URL }}
+      FAVOURITES_SYNC_SECRET: ${{ secrets.FAVOURITES_SYNC_SECRET }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
       OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
     steps:

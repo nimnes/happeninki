@@ -5,6 +5,11 @@ __pycache__/
 data/
 preview.json
 .DS_Store
+node_modules/
+.wrangler/
+.dev.vars
+cloudflare/wrangler.jsonc
+cloudflare/secrets.json
 docs/event-selection-pilot.json
 docs/event-selection-research-progress.md
 docs/event-selection-research.md
