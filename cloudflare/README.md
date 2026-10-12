@@ -92,7 +92,13 @@ webhook requests remain bounded to 64 KiB.
 A user may save up to 100 events. Duplicate saves (including the other channel's
 language version) update one entry. `/events` lists upcoming events chronologically,
 five per page, with source links and removal buttons. Ended events are cleaned from
-that user's list when they open it or save another event. `/delete_me` requires a
+that user's list when they open it or save another event. A daily background job
+also removes favourites whose last occurrence ended more than seven days ago,
+including for users who have not opened their list. Recurring events with future
+dates and ongoing exhibitions are retained. The public event catalogue is kept.
+The job runs at 06:00 UTC (08:00 Helsinki in winter, 09:00 in summer), configured
+using [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/).
+It sends no Telegram messages. `/delete_me` requires a
 private confirmation and removes only that user's saved rows. `/privacy` explains
 storage. English/Russian responses follow the save link or Telegram UI language.
 

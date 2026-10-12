@@ -74,6 +74,24 @@ async function pruneExpired(env, user) {
   const expired=results.filter(e=>!nextOccurrence(e));
   if(expired.length) await env.DB.batch(expired.map(e=>env.DB.prepare('DELETE FROM favourites WHERE user_id=? AND event_id=?').bind(user,e.id)));
 }
+export async function cleanupOldFavourites(env, now = new Date()) {
+  const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const day = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Europe/Helsinki', year:'numeric', month:'2-digit', day:'2-digit'
+  }).format(cutoff);
+  // Only delete once every occurrence has ended more than a week ago.
+  // Keep the public catalogue intact, so other users and recurring dates work.
+  await env.DB.prepare(`DELETE FROM favourites WHERE event_id IN (
+    SELECT e.id FROM events e JOIN (SELECT DISTINCT event_id FROM favourites) f ON f.event_id=e.id
+    WHERE NOT EXISTS (
+      SELECT 1 FROM json_each(CASE WHEN json_array_length(e.dates)>0 THEN e.dates
+        ELSE json_array(json_object('end',e.end)) END) occurrence
+      WHERE CASE WHEN e.date_only=1
+        THEN substr(json_extract(occurrence.value,'$.end'),1,10)>=?
+        ELSE julianday(json_extract(occurrence.value,'$.end'))>=julianday(?) END
+    )
+  )`).bind(day,cutoff.toISOString()).run();
+}
 async function save(env, user, id, language) {
   const event = await env.DB.prepare('SELECT e.*, t.title FROM events e JOIN event_texts t ON t.event_id=e.id WHERE e.id=? AND t.language=?').bind(id,language).first();
   if (!event || event.cancelled || !nextOccurrence(event)) return send(env,user,words[language].missing, [[listButton(language)]]);
@@ -160,6 +178,9 @@ async function readJson(request, maxBytes) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 export default {
+  async scheduled(controller, env) {
+    await cleanupOldFavourites(env, new Date(controller.scheduledTime));
+  },
   async fetch(request, env) {
     const path=new URL(request.url).pathname;
     if(path==='/health' && request.method==='GET') {

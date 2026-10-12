@@ -2,7 +2,7 @@ import {test, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
-import worker, {nextOccurrence} from '../worker.js';
+import worker, {cleanupOldFavourites, nextOccurrence} from '../worker.js';
 
 let db, env, sent, originalFetch, sequence;
 const eventId='a'.repeat(32);
@@ -158,4 +158,39 @@ test('an expired callback acknowledgement does not block removal',async()=>{
   globalThis.fetch=async(url)=>Response.json(url.endsWith('answerCallbackQuery') ? {ok:false} : {ok:true,result:{}}, {status:url.endsWith('answerCallbackQuery') ? 400 : 200});
   assert.equal((await callback(101,`remove_en_${eventId}`)).status,200);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM favourites').get().n,0);
+});
+test('daily cleanup removes week-old favourites for inactive users and keeps unfinished events',async()=>{
+  const now=new Date('2026-10-12T06:00:00Z');
+  const records=[
+    {id:'1'.repeat(32),start:'2026-10-01T10:00:00Z',end:'2026-10-01T12:00:00Z'},
+    {id:'2'.repeat(32),start:'2026-10-05T05:00:00Z',end:'2026-10-05T06:00:00Z'}, // Exactly seven days.
+    {id:'3'.repeat(32),start:'2026-10-10T10:00:00Z',end:'2026-10-10T12:00:00Z'},
+    {id:'4'.repeat(32),start:'2026-10-20T10:00:00Z',end:'2026-10-20T12:00:00Z'},
+    {id:'5'.repeat(32),start:'2026-10-01',end:'2026-11-01',date_only:true},
+    {id:'6'.repeat(32),start:'2026-10-01T10:00:00Z',end:'2026-10-20T12:00:00Z',dates:[
+      {start:'2026-10-01T10:00:00Z',end:'2026-10-01T12:00:00Z'},
+      {start:'2026-10-20T10:00:00Z',end:'2026-10-20T12:00:00Z'}]},
+    {id:'7'.repeat(32),start:'2026-10-01T10:00:00Z',end:'2026-10-02T12:00:00Z',dates:[
+      {start:'2026-10-01T10:00:00Z',end:'2026-10-01T12:00:00Z'},
+      {start:'2026-10-02T10:00:00Z',end:'2026-10-02T12:00:00Z'}]}
+  ];
+  for(const record of records) {
+    await register(record);
+    for(const user of ['101','202']) db.prepare('INSERT INTO favourites VALUES(?,?,?)').run(user,record.id,'en');
+  }
+  await worker.scheduled({scheduledTime:now.getTime()},env);
+  assert.deepEqual(db.prepare('SELECT DISTINCT event_id FROM favourites ORDER BY event_id').all().map(r=>r.event_id),
+    records.slice(1,6).map(r=>r.id));
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM favourites').get().n,10);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM events').get().n,7);
+  assert.equal(sent.length,0);
+  await worker.scheduled({scheduledTime:now.getTime()},env);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM favourites').get().n,10);
+});
+test('background cleanup respects Helsinki dates for date-only events',async()=>{
+  await register({id:'1'.repeat(32),start:'2026-10-04',end:'2026-10-04',date_only:true});
+  await register({id:'2'.repeat(32),start:'2026-10-05',end:'2026-10-05',date_only:true});
+  for(const id of ['1'.repeat(32),'2'.repeat(32)]) db.prepare('INSERT INTO favourites VALUES(?,?,?)').run('101',id,'en');
+  await cleanupOldFavourites(env,new Date('2026-10-11T21:30:00Z')); // Already Monday in Helsinki.
+  assert.deepEqual(db.prepare('SELECT event_id FROM favourites').all().map(r=>r.event_id),['2'.repeat(32)]);
 });
