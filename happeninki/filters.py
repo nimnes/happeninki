@@ -115,6 +115,27 @@ def venue_matches(venue, names):
     return False
 
 
+def artist_matches(title, artists):
+    return any(re.search(r'(?<!\w)' + re.escape(artist) + r'(?!\w)', title, re.I)
+               for artist in artists)
+
+
+def international_music_artist(title, preferences):
+    if re.search(r'\b(?:tribute|cover[ -]?band|tribuutti\w*)\b', title, re.I):
+        return False
+    return artist_matches(title, preferences.get('international_music_artists', []))
+
+
+def domestic_music_only(title, description, preferences):
+    if international_music_artist(title, preferences):
+        return False
+    # Use artist names or explicit performer origin, never the listing language.
+    return bool(artist_matches(title, preferences.get('finnish_music_artists', [])) or re.search(
+        r'\b(?:kotimai\w*|suomalai\w*)\s+(?:artisti\w*|yhtye\w*|bändi\w*|laulaja\w*|esiintyjä\w*)\b|'
+        r'\b(?:Finnish|domestic)[ -]+(?:artists?|bands?|singers?|performers?)\b',
+        plain_text(title) + '. ' + plain_text(description), re.I))
+
+
 def child_age_recommendation(text):
     return any(int(match[1]) < 13 and (not match[2] or int(match[2]) < 13)
                for match in CHILD_AGE.finditer(text))
@@ -208,6 +229,8 @@ def exclusion_reason(title, description, source_categories, config, performance_
                 or has_allowed_theatre_language(title, description, preferences["theatre_languages"])):
             return "theatre without confirmed allowed performance language"
     music_tags = set(config.get("category_mapping", {}).get("music", []))
+    if tags.intersection(music_tags) and domestic_music_only(title, description, preferences):
+        return 'Finnish music artist without verified international reach'
     if (preferences.get('church_choir_selection') == 'notable'
             and CHURCH_VENUE.search(plain_text(venue).split(',', 1)[0])
             and is_church_choir(title, description, tags)
@@ -216,7 +239,7 @@ def exclusion_reason(title, description, source_categories, config, performance_
     if tags.intersection(music_tags) and preferences.get("music_selection") == "curated":
         artists = preferences.get("music_artists", [])
         venues = preferences.get("music_venues", [])
-        if not (any(re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.I) for artist in artists)
+        if not (artist_matches(title, artists) or international_music_artist(title, preferences)
                 or venue_matches(venue, venues)
                 or (preferences.get("allow_church_music") and church_music_eligible(title, description, tags, venue, config))):
             return "music outside curated artists or venues"

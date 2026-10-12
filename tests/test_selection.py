@@ -80,7 +80,7 @@ class SelectionTests(unittest.TestCase):
             self.assertGreater(score_event(replace(ordinary, performance_languages=[language]), self.config, TODAY)[0], baseline)
         self.assertLess(score_event(replace(ordinary, description='Esityskieli: suomi'), self.config, TODAY)[0], baseline)
         self.assertGreater(score_event(replace(ordinary, description='Songs are sung in English.'), self.config, TODAY)[0], baseline)
-        for description in ('English website available. Finnish artist.', 'Not performed in English.',
+        for description in ('English website available.', 'Not performed in English.',
                             'Previously performed in English.'):
             self.assertEqual(score_event(replace(ordinary, description=description), self.config, TODAY)[0], baseline)
         # Translation/delivery language is independent of the actual performance.
@@ -91,7 +91,7 @@ class SelectionTests(unittest.TestCase):
         concert = event(title='Local bands anniversary night', description='A record label anniversary with several bands.')
         self.assertLess(score_event(concert, self.config, TODAY)[0], self.config['selection']['minimum_score'])
         for changes in ({'performance_languages': ['en']}, {'performance_languages': ['ru']},
-                        {'venue': 'Nokia Arena', 'address': 'Nokia Arena'}, {'title': 'Classical concert'}):
+                        {'title': 'Classical concert'}):
             self.assertGreaterEqual(score_event(replace(concert, **changes), self.config, TODAY)[0], self.config['selection']['minimum_score'])
         self.config['filters']['music_artists'] = ['Local bands']
         self.assertGreaterEqual(score_event(concert, self.config, TODAY)[0], self.config['selection']['minimum_score'])
@@ -103,16 +103,30 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(ranked, [])
         self.assertEqual(next(iter(decisions.values()))['reason'], 'explicitly excluded event')
 
-    def test_major_finnish_concerts_retain_priority(self):
-        for changes in ({'venue': 'Nokia Arena', 'address': 'Nokia Arena'},
+    def test_large_venues_do_not_override_finnish_language_penalty(self):
+        for venue in ('Nokia Arena', 'Tampere-talo', 'Tampereen Jäähalli'):
+            concert = event(title='Local band concert', description='A local concert.', venue=venue, address=venue)
+            self.assertLess(score_event(concert, self.config, TODAY)[0], self.config['selection']['minimum_score'])
+            self.assertEqual(score_event(replace(concert, performance_languages=['fi']), self.config, TODAY)[0],
+                             score_event(concert, self.config, TODAY)[0] - 20)
+
+    def test_recognized_bands_and_notable_church_programmes_retain_priority(self):
+        for changes in ({'title': 'Nightwish', 'description': 'Finnish band Nightwish performs.'},
                         {'title': 'Kuoro: Mozartin Requiem', 'venue': 'Tuomiokirkko', 'address': 'Tuomiokirkko'}):
             concert = event(**changes)
             self.assertEqual(score_event(concert, self.config, TODAY)[0],
                              score_event(replace(concert, performance_languages=['fi']), self.config, TODAY)[0])
         self.config['filters']['music_artists'] = ['Favourite']
         concert = event(title='Favourite', venue='Small hall', address='Small hall')
-        self.assertEqual(score_event(concert, self.config, TODAY)[0],
+        self.assertEqual(score_event(concert, self.config, TODAY)[0] - 20,
                          score_event(replace(concert, performance_languages=['fi']), self.config, TODAY)[0])
+
+    def test_domestic_artists_are_rejected_without_performance_language(self):
+        for artist, venue in [('Lauri Haav', 'Nokia Arena'), ('Lasse Hoikka & Souvarit', 'Tampere-talo')]:
+            concert = event(title=artist, description='Sold-out arena concert.', venue=venue, address=venue)
+            ranked, decisions = rank_pending(self.store, self.pending([concert]), self.config, TODAY, HASHES)
+            self.assertEqual(ranked, [])
+            self.assertEqual(next(iter(decisions.values()))['reason'], 'Finnish music artist without verified international reach')
 
     def test_minimum_interest_does_not_fill_spare_slots(self):
         low = event(performance_languages=['fi'])

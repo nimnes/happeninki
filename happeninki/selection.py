@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date, datetime
 
-from .filters import event_exclusion_reason, church_music_eligible, venue_matches, has_allowed_theatre_language, notable_church_choir, programme_text
+from .filters import event_exclusion_reason, church_music_eligible, venue_matches, has_allowed_theatre_language, notable_church_choir, programme_text, artist_matches, international_music_artist, domestic_music_only
 from .models import normalized, plain_text
 
 
@@ -63,22 +63,21 @@ def performance_languages(event):
 def score_event(event, config, today, now=None):
     preferences = config.get('filters', {})
     church = church_music_eligible(event.title, event.description, event.source_categories, event.address or event.venue, config)
-    artist = any(
-        re.search(r'(?<!\w)' + re.escape(artist) + r'(?!\w)', event.title, re.I)
-        for artist in preferences.get('music_artists', []))
+    international = international_music_artist(event.title, preferences)
+    artist = international or artist_matches(event.title, preferences.get('music_artists', []))
     preferred = event.category == 'music' and ((church and preferences.get('allow_church_music')) or artist)
     venue = event.category == 'music' and venue_matches(event.address or event.venue, preferences.get('music_venues', []))
     languages = performance_languages(event)
-    major = event.category == 'music' and (venue_matches(event.address or event.venue,
-        config.get('selection', {}).get('major_music_venues', [])) or
-        artist or (church and notable_church_choir(event.title, event.description, config)))
+    major = event.category == 'music' and (international or
+        (church and notable_church_choir(event.title, event.description, config)))
     language_fit = 20 if languages.intersection({'en', 'ru'}) else (
-        -20 if 'fi' in languages and event.category in {'music', 'culture'} and not major else 0)
+        -20 if ('fi' in languages or (event.category == 'music' and domestic_music_only(
+            event.title, event.description, preferences))) and event.category in {'music', 'culture'} and not major else 0)
     accessible_programme = re.search(
         r'\b(?:\w*jazz\w*|klassinen|klassisen|klassista|classical|barokki\w*|baroque|'
         r'kamarimusi\w*|chamber\s+music|джаз\w*|классическ\w*)\b',
         programme_text(event.title, event.description) + ' ' + ' '.join(event.source_categories), re.I)
-    venue_only = event.category == 'music' and not (preferred or major or accessible_programme)
+    venue_only = event.category == 'music' and not (preferred or accessible_programme)
     components = {'preference_fit': 40 if preferred else 30 if event.category in {'music', 'festivals'} else 25,
                   'programme_context': 10 if preferred or venue else 0,
                   'language_accessibility': language_fit,

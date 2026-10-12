@@ -123,27 +123,43 @@ campaign when the next one becomes available.
 
 ## Event selection and comparison
 
-The approved music venues, favourite-artist list and church classical/choir/jazz
+The approved music venues, artist lists and church classical/choir/jazz
 exception still determine music eligibility. Ranking favors explicit English or
 Russian performance language (+20), stated church music preferences, approved
 concert venues, complete location information and useful lead time. A listing
 written in English or Russian does not establish its performance language.
 Explicit Finnish-language music and cultural performances lose 20 points unless
-the concert is at a configured major venue, features a favourite artist, or is
-a church concert with a recognized work or large-scale programme. Unknown
-performance language gets no language bonus or penalty. The existing theatre
+the concert features a verified international band or is a church concert with
+a recognized work or large-scale programme. Known domestic music performers also
+receive the penalty when performance language is unspecified. Venue capacity
+provides no exception. Unknown performance language otherwise gets no language
+bonus or penalty. The existing theatre
 language exclusions still apply.
 
 An approved venue alone is insufficient evidence of an interesting concert:
-music without a favourite artist, major venue, eligible church programme, or
+music without an approved artist, eligible church programme, or
 explicit jazz/classical programme loses 15 points. This normally places concerts
-with unknown performance language below the threshold, even at G Livelab,
-Tullikamari or Tavara-asema. Explicit English/Russian performance evidence can
+with unknown performance language below the threshold, including Nokia Arena,
+Tampere-talo, G Livelab, Tullikamari and Tavara-asema. Explicit English/Russian performance evidence can
 still lift their score above the threshold. Jazz/classical programme evidence
 comes from titles, source categories or programme statements, rather than an
 artist biography. `filters.excluded_source_keys` lists specifically unwanted
 events by `source:id`; these are excluded from daily new posts and digests even
 if their descriptions change.
+
+`filters.finnish_music_artists` identifies reviewed domestic performers, starting
+with Lauri Haav and Lasse Hoikka & Souvarit. Explicit Finnish/domestic performer
+wording is also recognized; the listing's written language is never treated as
+artist nationality. These acts are excluded unless the event title names a band
+in `international_music_artists`. This is a curated list, not automatic fame
+measurement. The initial entries are Nightwish, Apocalyptica and Lordi, backed by
+their [official international-success account](https://www.nightwish.com/news/nightwish-re-sign-with-nuclear-blast),
+[official worldwide touring biography](https://www.apocalyptica.com/), and
+[booking agency profile](https://warnermusiclive.fi/artistit/lordi).
+Tribute and cover bands do not qualify through the international artist list.
+Artist matching uses event titles, so a biography mentioning a famous band cannot
+qualify another performer. Both daily selection and the weekly digest use these
+rules; cancelled or changed previously published events can still be updated.
 
 New events must reach `selection.minimum_score` (50 by default in this project's
 configuration). Seven is a daily maximum, never a target: a run can select fewer
@@ -152,13 +168,13 @@ normally fall below the threshold. Exhibitions, Finnish-learning activities and
 SYÖ! campaigns receive 10 interest points to preserve their visibility. These
 points express editorial preferences, not measured popularity or probabilities;
 there is no internet popularity lookup. The same minimum and language priorities
-apply to the weekly digest. Already selected deliveries can finish retrying and
-previously published posts can receive updates even below the new threshold.
+apply to the weekly digest. Queued new deliveries must still meet the current
+threshold; previously published posts can receive updates below it.
 Duplicate listings with the same normalized title, city, venue and occurrence
 starts compete for one post, even when their advertised end times differ.
 
-The `[selection]` settings control the seven-post limit, minimum score, major
-concert venue list, 30-day notice window, three-day reconsideration period and
+The `[selection]` settings control the seven-post limit, minimum score,
+30-day notice window, three-day reconsideration period and
 advisory classifier. `minimum_score = 0` disables the interest threshold.
 `enabled = false`
 restores the original queue behavior; `classifier_mode = "off"` disables only
@@ -326,6 +342,8 @@ nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 music_selection = "curated"
 music_venues = ["Nokia Arena", "Tampere-talo", "Tampereen Jäähalli", "Tavara-asema", "Tullikamari", "G Livelab"]
 music_artists = []
+international_music_artists = ["Nightwish", "Apocalyptica", "Lordi"]
+finnish_music_artists = ["Lauri Haav", "Lasse Hoikka", "Souvarit", "Souvari"]
 allow_church_music = true
 church_choir_selection = "notable"
 church_choir_works = ["Mozart: Requiem", "Handel: Messiah", "Orff: Carmina Burana"]
@@ -342,7 +360,7 @@ still be included. Clear Finnish-learning titles can be included even when they
 are listed outside the usual cultural categories.
 
 `music_selection = "curated"` admits music only at `music_venues` or when the title
-names an artist in `music_artists`. The venue list includes Nokia Arena,
+names an artist in `music_artists` or `international_music_artists`. The venue list includes Nokia Arena,
 Tampere-talo, Tampereen Jäähalli, Tavara-asema, Tullikamari and G Livelab.
 Venue is a proxy for a curated concert programme, not proof that an artist is popular; favourite artists can be added
 without depending on their venue. Set `music_selection = "all"` to remove this

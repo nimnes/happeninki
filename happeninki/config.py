@@ -23,7 +23,7 @@ def load_config(path="config.toml"):
                 "exclude_workshops", "exclude_games", "exclude_standup", "exclude_lectures", "exclude_nightclubs", "allow_church_music"):
         if key in filters and not isinstance(filters[key], bool):
             raise ValueError(f"filters.{key} must be true or false")
-    for key in ("excluded_source_categories", "excluded_source_keys", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists", "church_choir_works"):
+    for key in ("excluded_source_categories", "excluded_source_keys", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists", "international_music_artists", "finnish_music_artists", "church_choir_works"):
         values = filters.get(key, [])
         if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
             raise ValueError(f"filters.{key} must be a list of nonempty strings")
@@ -60,7 +60,7 @@ def load_config(path="config.toml"):
         raise ValueError('selection must be a table')
     for key, value in {'enabled': False, 'daily_limit': 7, 'lead_days': 30,
                        'reconsider_days': 3, 'classifier_mode': 'off', 'classification_budget': 5,
-                       'minimum_score': 0, 'major_music_venues': []}.items():
+                       'minimum_score': 0}.items():
         selection.setdefault(key, value)
     if not isinstance(selection.get('enabled', False), bool):
         raise ValueError('selection.enabled must be true or false')
@@ -69,9 +69,6 @@ def load_config(path="config.toml"):
     if (not isinstance(selection['minimum_score'], int) or isinstance(selection['minimum_score'], bool)
             or selection['minimum_score'] < 0):
         raise ValueError('selection.minimum_score must be a nonnegative integer')
-    if (not isinstance(selection['major_music_venues'], list)
-            or any(not isinstance(value, str) or not value.strip() for value in selection['major_music_venues'])):
-        raise ValueError('selection.major_music_venues must be a list of nonempty strings')
     for key in ('daily_limit', 'lead_days', 'reconsider_days', 'classification_budget'):
         value = selection.get(key, 1)
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:

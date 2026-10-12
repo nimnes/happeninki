@@ -120,6 +120,12 @@ class DigestTests(unittest.TestCase):
         excluded = event('6a07df00fafad1b3a6929427', performance_languages=['en'])
         self.assertEqual(shortlist([generic, excluded], self.config, SUNDAY, 'en'), [])
 
+    def test_digest_rejects_domestic_arena_artists_and_keeps_international_band(self):
+        local = event(10, title='Lauri Haav', venue='Nokia Arena', address='Nokia Arena', description='Sold-out concert.')
+        global_band = event(11, title='Nightwish', description='Finnish band Nightwish performs.',
+                            venue='Nokia Arena', address='Nokia Arena')
+        self.assertEqual([item.source_id for item, _ in shortlist([local, global_band], self.config, SUNDAY, 'en')], ['11'])
+
     def test_digest_has_no_save_buttons_or_favourites_dependency(self):
         class WithFavourites(Telegram):
             def prepare_event(self, *args):

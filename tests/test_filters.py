@@ -70,6 +70,35 @@ class PreferenceTests(unittest.TestCase):
             with self.subTest(title=page["name"]):
                 self.assertIsNone(parse_tampere(page, "Tampere", config))
 
+    def test_domestic_arena_examples_and_other_listings_for_same_artists(self):
+        config = load_config()
+        examples = [('69367cb0fafad1b3a66a9518', 'LISÄKEIKKA: LAURI HAAV - LOPPUUNVARATTU', 'Nokia Arena'),
+                    ('6aa8f2bea2959eeb6bdd3b72', 'KIITOS-konsertti - Musiikkineuvos Lasse Hoikka & Souvari', 'Tampere-talo')]
+        for source_id, title, venue in examples:
+            with self.subTest(title=title):
+                page = self.page(title, ['music', 'gig'], 'Sold-out concert with popular songs.')
+                page['_id'] = source_id
+                page['locations'] = [{'address': venue + ', Tampere'}]
+                self.assertIsNone(parse_tampere(page, 'Tampere', config))
+                other = event(source_id='another-listing', title=title, venue=venue, address=venue,
+                              description='Songs are sung in English.', performance_languages=['en'])
+                self.assertEqual(event_exclusion_reason(other, config), 'Finnish music artist without verified international reach')
+                changed = event(source_id=source_id, title='Nightwish', venue=venue, address=venue)
+                self.assertEqual(event_exclusion_reason(changed, config), 'explicitly excluded event')
+
+    def test_finnish_origin_is_not_inferred_from_listing_language(self):
+        self.assertEqual(self.reason('Paikallinen yhtye', 'A Finnish band performs.', ['music']),
+                         'Finnish music artist without verified international reach')
+        self.assertIsNone(self.reason('International headliner', 'Tervetuloa konserttiin. Finnish website available.', ['music']))
+
+    def test_verified_international_bands_are_allowed_without_venue_proxy(self):
+        config = load_config()
+        for name in config['filters']['international_music_artists']:
+            concert = event(title=name, description='A Finnish band performs.', venue='Small venue')
+            self.assertIsNone(event_exclusion_reason(concert, config))
+        tribute = event(title='Nightwish tribute band', venue='Small venue', description='A Finnish band performs.')
+        self.assertIsNotNone(event_exclusion_reason(tribute, config))
+
     def test_new_format_exclusions_override_concert_tags(self):
         for title, description in (("Luentokonserttisarja: 540 vuotta kitaran historiaa", ""),
                                    ("Comedy night", "Stand-up comedy"),
