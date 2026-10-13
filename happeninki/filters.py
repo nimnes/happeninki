@@ -23,6 +23,15 @@ THEATRE = re.compile(r"\b(\w*näytelmä\w*|teatteriesitys\w*|musikaali(?:n|a|ssa
 # Check the whole listing for explicit event formats; source tags are often incomplete.
 STANDUP = re.compile(r"\b(?:stand[ -]?up|standupkomi\w*|стендап\w*)\b", re.I)
 LECTURES = re.compile(r"\b(?:\w*luento\w*|lectures?|лекци\w*)\b", re.I)
+ARTIST_MEETING = re.compile(
+    r'\b(?:taiteilija(?:tapaami\w*|keskustel\w*|haastattel\w*|ilta\w*|kierro\w*)|'
+    r'kuraattori(?:tapaami\w*|keskustel\w*)|artists?(?:[’\x27]s?)?\s+(?:talks?|meetings?|meet[ -](?:and|&)[ -]greets?|conversations?)|'
+    r'(?:tapaa|tapaaminen)\s+(?:kuvataiteilija|taiteilija)\w*|taiteilija\w*\s+tavattavissa|'
+    r'(?:meet|meeting\s+with|talk\s+with)\s+(?:the\s+|an?\s+)?artists?|'
+    r'curators?(?:[’\x27]s?)?\s+(?:talks?|meetings?|conversations?)|gallery\s+talks?|'
+    r'artist[ -]led\s+tours?|встреч\w*\s+с\s+(?:художник\w*|куратор\w*)|'
+    r'бесед\w*\s+с\s+художник\w*)\b', re.I)
+EXHIBITION_TITLE = re.compile(r'\b(?:\w*näyttely\w*|exhibitions?|выставк\w*)\b', re.I)
 NIGHTCLUB = re.compile(r"\b(?:yökerho\w*|night\s*club\w*|club\s+night|klubi[ -]?ilta\w*|"
                        r"dj[ -]?(?:set|night|ilta)\w*|дискотек\w*|ночной\s+клуб)\b", re.I)
 CHILD_AGE = re.compile(r"\b(?:suositusikä|ikä(?:suositus|raja)?|recommended\s+age|ages?)\s*[:]?\s*"
@@ -183,6 +192,15 @@ def is_finnish_learning(title, description):
                 (LANGUAGE_ACTIVITY.search(title) and FINNISH_PRACTICE.search(description)))
 
 
+def is_artist_meeting(title, description):
+    if ARTIST_MEETING.search(title):
+        return True
+    # An exhibition may advertise a separate meeting as a side programme.
+    # Only use the introduction when the title doesn't identify the exhibition itself.
+    introduction = re.split(r'[.!?]', description, maxsplit=1)[0]
+    return bool(not EXHIBITION_TITLE.search(title) and ARTIST_MEETING.search(introduction))
+
+
 def exclusion_reason(title, description, source_categories, config, performance_languages=(), venue=""):
     preferences = config.get("filters", {})
     title, description = plain_text(title), plain_text(description)
@@ -195,6 +213,8 @@ def exclusion_reason(title, description, source_categories, config, performance_
         return "standup"
     if preferences.get("exclude_lectures") and LECTURES.search(text):
         return "lectures"
+    if preferences.get('exclude_artist_meetings') and is_artist_meeting(title, description):
+        return 'artist meetings and talks'
     if preferences.get("exclude_nightclubs") and NIGHTCLUB.search(text):
         return "nightclub events"
     if preferences.get("exclude_courses") and re.search(r'\bкурсы?\b', title, re.I):

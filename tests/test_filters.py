@@ -70,6 +70,37 @@ class PreferenceTests(unittest.TestCase):
             with self.subTest(title=page["name"]):
                 self.assertIsNone(parse_tampere(page, "Tampere", config))
 
+    def test_artist_meeting_examples_are_not_exhibitions(self):
+        examples = [('6acc95efa2441800072f8d62', 'Petri Ala-Maunus - taiteilijatapaaminen'),
+                    ('6accd7b552fe340007a7dfb9', 'Taiteilijatapaaminen Vaellus-näyttelyn merkeissä')]
+        for source_id, title in examples:
+            with self.subTest(title=title):
+                page = self.page(title, ['museums and galleries', 'museums', 'exhibitions'],
+                                 'An artist discusses their work at the gallery.')
+                page['_id'] = source_id
+                self.assertIsNone(parse_tampere(page, 'Tampere', self.config))
+
+    def test_artist_meeting_formats_in_finnish_english_and_russian(self):
+        for title in ('Taiteilijatapaamiset', 'Taiteilijakeskustelu', 'Tapaa taiteilija',
+                      'Artist talk', "Artist's talk", 'Artists’ talk', 'Meet the artist',
+                      'Artist meet & greet', 'Curator talk', 'Gallery talk', 'Встреча с художником'):
+            with self.subTest(title=title):
+                self.assertEqual(self.reason(title, tags=['exhibitions']), 'artist meetings and talks')
+        self.assertEqual(self.reason('Petri Ala-Maunus', 'Meet the artist at the gallery.', ['exhibitions']),
+                         'artist meetings and talks')
+
+    def test_exhibition_side_programme_does_not_exclude_exhibition(self):
+        for title, description in [('Vaellus-näyttely', 'Taiteilijatapaaminen on lauantaina. Näyttely on avoinna koko kuukauden.'),
+                                   ('Let There Be Light', 'An exhibition of paintings. Meet the artist on Saturday.'),
+                                   ('Museum exhibition', 'Artist talk is an optional side programme.')]:
+            with self.subTest(title=title):
+                self.assertIsNone(self.reason(title, description, ['exhibitions']))
+                self.assertIsNotNone(parse_tampere(self.page(title, ['exhibitions'], description), 'Tampere', self.config))
+
+    def test_artist_meeting_preference_can_be_disabled(self):
+        self.config['filters']['exclude_artist_meetings'] = False
+        self.assertIsNone(self.reason('Artist talk', tags=['exhibitions']))
+
     def test_domestic_arena_examples_and_other_listings_for_same_artists(self):
         config = load_config()
         examples = [('69367cb0fafad1b3a66a9518', 'LISÄKEIKKA: LAURI HAAV - LOPPUUNVARATTU', 'Nokia Arena'),

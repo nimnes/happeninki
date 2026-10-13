@@ -15,13 +15,16 @@ The area and categories can be extended as the project grows.
 
 By default, it skips children's activities, book clubs and reading sessions
 (including reading to dogs), general courses, workshops, bingo, pub quizzes and
-karaoke, standup, lectures (including lecture-concerts) and nightclub events.
+karaoke, standup, lectures (including lecture-concerts), artist meetings/talks and nightclub events.
 Music is restricted to the curated concert venues or favourite artists below.
 Finnish-language learning is an exception to the course filter.
 Theatre plays are included only when their performance language is English or
 Russian; unknown languages are excluded. Art Master's calendar is treated as
 Russian-language by default. Children’s daycare art projects are excluded even
 when the source labels them only as exhibitions.
+Exhibitions remain eligible when their descriptions mention a separate artist
+meeting. Dedicated meeting, artist-talk and curator-talk listings are excluded
+from both daily posts and weekly digests.
 
 ## How it works
 
@@ -337,6 +340,7 @@ exclude_workshops = true
 exclude_games = true
 exclude_standup = true
 exclude_lectures = true
+exclude_artist_meetings = true
 exclude_nightclubs = true
 nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 music_selection = "curated"

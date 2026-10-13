@@ -166,6 +166,14 @@ class DigestTests(unittest.TestCase):
         self.config['sources']['tampere']['enabled'] = False
         self.assertEqual(shortlist([exhibition], self.config, SUNDAY, 'en'), [])
 
+    def test_digest_keeps_exhibition_and_excludes_its_artist_meeting(self):
+        exhibition = event(1, title='Vaellus-näyttely', description='Taiteilijatapaaminen on lauantaina.',
+                           category='exhibitions', source_categories=['exhibitions'],
+                           date_only=True, start='2026-10-01', end='2026-10-30')
+        meeting = event(2, title='Taiteilijatapaaminen Vaellus-näyttelyn merkeissä',
+                        category='exhibitions', source_categories=['exhibitions'])
+        self.assertEqual([item.source_id for item, _ in shortlist([meeting, exhibition], self.config, SUNDAY, 'en')], ['1'])
+
     def test_recurring_occurrences_are_projected_into_week(self):
         dates = [{'start': f'2026-10-{day}T19:00:00+03:00', 'end': f'2026-10-{day}T21:00:00+03:00'}
                  for day in ('04', '15', '21')]

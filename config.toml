@@ -18,6 +18,7 @@ exclude_workshops = true
 exclude_games = true  # Bingo, pub quizzes and karaoke.
 exclude_standup = true
 exclude_lectures = true
+exclude_artist_meetings = true
 exclude_nightclubs = true
 nightclub_venues = ["Fame Club", "Bar Ihku", "Viihdemaailma Ilona"]
 # Curated venues are a conservative proxy, not proof of artist popularity.
