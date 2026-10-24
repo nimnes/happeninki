@@ -48,7 +48,7 @@ excluded_source_categories = []
 # Explicit examples that should never be selected, even if their source text changes.
 excluded_source_keys = ["tampere:6a07df00fafad1b3a6929427", "tampere:69367cb0fafad1b3a66a9518", "tampere:6aa8f2bea2959eeb6bdd3b72"]
 # Additional words/phrases to exclude from event titles, case-insensitive.
-exclude_title_keywords = []
+exclude_title_keywords = ["День пенсионера", "Eläkeläispäivä", "Pensioners' day", "Pensioners’ day", "Seniors' day", "Seniors’ day"]
 
 [ollama]
 url = "https://ollama.com/api/chat"

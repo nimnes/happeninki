@@ -47,6 +47,20 @@ class PreferenceTests(unittest.TestCase):
         self.assertIsNotNone(self.reason("Lasten konsertti", tags=["music"]))
         self.assertIsNotNone(self.reason("Craft afternoon", "Tapahtuma on suunnattu lapsille."))
 
+    def test_pensioners_days_are_excluded_but_regular_exhibition_is_kept(self):
+        for title in ('День пенсионера',
+                      'День пенсионера на выставке «Молодой художник года 2026»',
+                      'ДЕНЬ ПЕНСИОНЕРА',
+                      'Eläkeläispäivä: Vuoden nuori taiteilija 2026',
+                      "Pensioners' day at the exhibition", 'Seniors’ day'):
+            with self.subTest(title=title):
+                self.assertEqual(self.reason(title, tags=['exhibitions']), 'custom title keyword')
+                self.assertIsNone(parse_tampere(self.page(title, ['exhibitions']),
+                                               'Tampere', self.config))
+        self.assertIsNone(self.reason('Молодой художник года 2026', tags=['exhibitions']))
+        self.assertIsNone(self.reason('Exhibition', 'Discounted admission for pensioners.',
+                                      ['exhibitions']))
+
     def test_daycare_exhibition_without_child_tags_is_excluded(self):
         description = ("Ystävyys on seikkailu on Hervantalaisten yksityisten perhepäivähoitajien "
                        "yhdessä toteuttama projekti, jossa lapset kokevat jännittävän seikkailun "
