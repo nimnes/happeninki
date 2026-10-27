@@ -61,6 +61,47 @@ class PreferenceTests(unittest.TestCase):
         self.assertIsNone(self.reason('Exhibition', 'Discounted admission for pensioners.',
                                       ['exhibitions']))
 
+    def test_pensioner_audience_in_titles_descriptions_and_tags(self):
+        examples = [('Eläkeläisten museokierros', '', []),
+                    ('Seniori-iltapäivä', '', []),
+                    ('Ikäihmisten kulttuuripäivä', '', []),
+                    ('Retirees museum visit', '', []),
+                    ('Встреча пенсионеров', '', []),
+                    ('Museokierros', '<p>Tapahtuma on suunnattu eläkeläisille.</p>', []),
+                    ('Museum visit', 'An event for seniors.', []),
+                    ('Museum visit', 'Designed for older adults.', []),
+                    ('Встреча', 'Мероприятие для пенсионеров.', []),
+                    ('Museum visit', '', ['Seniors'])]
+        for title, description, tags in examples:
+            with self.subTest(title=title, description=description, tags=tags):
+                self.assertEqual(self.reason(title, description, tags), 'pensioner activities')
+                self.assertIsNone(parse_tampere(self.page(title, ['exhibitions'] + tags, description),
+                                               'Tampere', self.config))
+                self.assertEqual(event_exclusion_reason(event(title=title, description=description,
+                                 source_categories=tags), self.config), 'pensioner activities')
+
+    def test_pensioner_discounts_and_biographies_do_not_exclude_general_events(self):
+        for description in ('Discounted admission for pensioners.', 'Tickets for seniors: 5 euros.',
+                            'Eläkeläiset 5 euroa.', 'Senior tickets available.',
+                            'The artist is a pensioner.'):
+            with self.subTest(description=description):
+                self.assertIsNone(self.reason('Exhibition', description, ['exhibitions']))
+
+    def test_pensioner_filter_is_optional_and_validated(self):
+        self.config['filters']['exclude_pensioners'] = False
+        self.assertIsNone(self.reason('Eläkeläisten museokierros'))
+        content = Path('config.toml').read_text().replace('exclude_pensioners = true',
+                                                         'exclude_pensioners = "yes"')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.toml'
+            path.write_text(content)
+            with self.assertRaisesRegex(ValueError, 'filters.exclude_pensioners'):
+                load_config(path)
+
+    def test_linked_pensioner_event_stays_excluded_if_renamed(self):
+        self.assertEqual(event_exclusion_reason(event(source_id='6adf1a8e23d33e0007ee0500'),
+                                               self.config), 'explicitly excluded event')
+
     def test_daycare_exhibition_without_child_tags_is_excluded(self):
         description = ("Ystävyys on seikkailu on Hervantalaisten yksityisten perhepäivähoitajien "
                        "yhdessä toteuttama projekti, jossa lapset kokevat jännittävän seikkailun "
@@ -418,3 +459,4 @@ class QueuePreferenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

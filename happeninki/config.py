@@ -19,7 +19,7 @@ def load_config(path="config.toml"):
     for pattern in config["exclude_title_patterns"]:
         re.compile(pattern)
     filters = config.get("filters", {})
-    for key in ("exclude_children", "exclude_reading", "exclude_courses", "allow_finnish_learning",
+    for key in ("exclude_children", "exclude_pensioners", "exclude_reading", "exclude_courses", "allow_finnish_learning",
                 "exclude_workshops", "exclude_games", "exclude_standup", "exclude_lectures", "exclude_artist_meetings", "exclude_nightclubs", "allow_church_music"):
         if key in filters and not isinstance(filters[key], bool):
             raise ValueError(f"filters.{key} must be true or false")
@@ -83,3 +83,4 @@ def load_config(path="config.toml"):
     if not isinstance(digest['max_events'], int) or isinstance(digest['max_events'], bool) or not 1 <= digest['max_events'] <= 10:
         raise ValueError('digest.max_events must be between 1 and 10')
     return config
+

@@ -333,6 +333,7 @@ The `[filters]` section lets you choose what you want to see:
 ```toml
 [filters]
 exclude_children = true
+exclude_pensioners = true  # Events aimed at pensioners/seniors; general admission discounts are OK.
 exclude_reading = true
 exclude_courses = true
 allow_finnish_learning = true
@@ -436,3 +437,4 @@ GitHub's scheduler can delay runs. Public repositories may also have schedules
 disabled after 60 days without activity, so check Actions periodically. If a run
 reports a database upload failure, keep its recovery artifact before retrying:
 it may contain publication history needed to avoid duplicate posts.
+
