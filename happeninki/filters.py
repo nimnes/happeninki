@@ -4,6 +4,17 @@ import re
 from .models import plain_text, normalized
 
 CHILDREN = re.compile(r"\b(lasten\w*|lapsille|lapsiperhe\w*|vauva\w*|taapero\w*|satutuokio\w*|children(?:'s)?|kids|toddlers?|babies)\b", re.I)
+# Titles and audience tags identify the event; descriptions need explicit
+# targeting so a pensioner ticket discount does not exclude a general event.
+PENSIONER_TITLE = re.compile(
+    r"\b(?:eläkeläi\w*|seniori\w*|ikäihmi\w*|pensioners?|retirees?|seniors?|"
+    r"пенсионер\w*)\b", re.I)
+PENSIONER_AUDIENCE = re.compile(
+    r"\b(?:(?:suunnattu|tarkoitettu|suunniteltu)\s+(?:\w+\s+){0,3}"
+    r"(?:eläkeläisille|senioreille|ikäihmisille)|"
+    r"(?:aimed at|(?:intended|designed)\s+for|(?:events?|activities|tours?|concerts?)\s+for)\s+"
+    r"(?:(?:retired|older)\s+(?:adults?|people)|pensioners?|retirees?|seniors?)|"
+    r"для\s+пенсионер\w*)\b", re.I)
 CHILD_AUDIENCE = re.compile(r"(?:suunnattu|tarkoitettu|sopii|suunniteltu)\s+(?:\w+\s+){0,3}(?:lapsille|lapsiperheille)|(?:for|aimed at)\s+(?:young\s+)?(?:children|kids|toddlers)", re.I)
 CHILD_PROJECT = re.compile(
     r"\b(?:\w*perhepäivähoi\w*|\w*päiväkoti\w*|\w*päiväkode\w*|daycare|day\s+care|preschool|kindergarten)\b", re.I)
@@ -227,6 +238,10 @@ def exclusion_reason(title, description, source_categories, config, performance_
         return "custom title keyword"
     if tags.intersection(tag.casefold() for tag in preferences.get("excluded_source_categories", [])):
         return "custom source category"
+    if preferences.get("exclude_pensioners") and (
+            PENSIONER_TITLE.search(title) or any(PENSIONER_TITLE.search(tag) for tag in tags)
+            or PENSIONER_AUDIENCE.search(description)):
+        return "pensioner activities"
     if preferences.get("exclude_children") and (
             "kids and family" in tags or CHILDREN.search(title) or re.search(r"\bkoululai\w*", title, re.I)
             or re.search(r"\blast(?:en|e[nm])\s+elokuv\w*", description, re.I) or CHILD_AUDIENCE.search(description)
@@ -276,3 +291,4 @@ def event_exclusion_reason(event, config):
     if event.category == "music" and not set(tags).intersection(config["category_mapping"]["music"]):
         tags.append(config["category_mapping"]["music"][0])
     return exclusion_reason(event.title, event.description, tags, config, event.performance_languages, event.address or event.venue)
+
