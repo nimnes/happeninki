@@ -318,6 +318,24 @@ class PreferenceTests(unittest.TestCase):
                 self.assertIsNotNone(self.reason(title))
         self.assertIsNotNone(self.reason("Author evening", tags=["literature"]))
 
+    def test_book_sales_are_reading_activities_even_with_festival_tags(self):
+        description = ('Kirjabasaarissa myydään Lastenkirjainstituutin kirjaston kokoelmista '
+                       'poistettuja tai muutoin ylimääräisiä, uusia sekä vanhoja '
+                       'lasten- ja nuortenkirjoja. Kirjojen hinnat alkaen 1 €. '
+                       'Kirjabasaari on osa Kirjalitta-festivaalin ohjelmaa.')
+        page = self.page('Kirjabasaari', ['festivals'], description)
+        page['_id'] = '6ae1b77a6c7f0f0007ee1b39'
+        self.assertIsNone(parse_tampere(page, 'Tampere', self.config))
+        for title in ('Kirjabasaari', 'Kirjamyynti', 'Kirjakirpputori', 'Kirjatori',
+                      'Book bazaar', 'Book sale', 'Book market', 'Книжная распродажа'):
+            with self.subTest(title=title):
+                self.assertEqual(self.reason(title, description, ['festivals']), 'reading activities')
+        self.config['filters']['exclude_reading'] = False
+        self.assertIsNone(self.reason('Kirjabasaari', description, ['festivals']))
+
+    def test_book_sale_side_programme_does_not_exclude_festival(self):
+        self.assertIsNone(self.reason('Arts festival', 'Optional book sale in the foyer.', ['festivals']))
+
     def test_general_courses_workshops_and_games_excluded(self):
         for title in ("Lasten tanssikurssit", "Valokuvauskurssi", "English language course",
                       "Keramiikkatyöpaja", "Craft workshop", "Bingo", "Pub Quiz", "Karaoke"):
@@ -415,6 +433,26 @@ class QueuePreferenceTests(unittest.TestCase):
     def tearDown(self):
         self.store.close()
         self.directory.cleanup()
+
+    def test_new_linked_event_is_not_translated_or_published_from_queue(self):
+        # The live page was unavailable: use neutral text to verify that the
+        # explicit source exclusion survives changes to the listing.
+        item = event(source_id='6ae1b77a6c7f0f0007ee1b39', title='Renamed event')
+        self.store.ingest([item], TODAY, next_month(TODAY))
+
+        class NeverTranslate:
+            def translate(self, event, language):
+                raise AssertionError('Excluded event must not be translated')
+
+        class NeverSend:
+            channels = {'ru': 'ru'}
+
+            def publish(self, *args):
+                raise AssertionError('Excluded event must not be published')
+
+        self.assertEqual(event_exclusion_reason(item, self.config), 'explicitly excluded event')
+        self.assertEqual(publish_pending(self.store, self.config, NeverTranslate(), NeverSend(),
+                         TODAY, lambda _: None, time.monotonic() + 10), (0, 0))
 
     def test_old_queued_child_event_suppressed_and_receipt_preserved(self):
         concert = event()

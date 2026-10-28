@@ -334,7 +334,7 @@ The `[filters]` section lets you choose what you want to see:
 [filters]
 exclude_children = true
 exclude_pensioners = true  # Events aimed at pensioners/seniors; general admission discounts are OK.
-exclude_reading = true
+exclude_reading = true  # Includes book bazaars and sales.
 exclude_courses = true
 allow_finnish_learning = true
 exclude_workshops = true
