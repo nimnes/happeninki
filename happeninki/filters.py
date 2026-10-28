@@ -23,6 +23,10 @@ CHILD_PARTICIPATION = re.compile(
     r"(?:created|made|produced)\s+by\s+(?:children|kids)|children(?:'s)?\s+(?:art|artwork|project)\w*)\b", re.I)
 READING = re.compile(r"\b(\w*lukukoira\w*|lue\s+koir(?:alle|ille)|lukupiir\w*|lukuhetk\w*|lukutuokio\w*|satutuokio\w*|kirjakerho\w*|book\s+club|reading\s+(?:group|club)|(?:read|reading)\s+to\s+(?:(?:a|the)\s+)?dogs?|story\s*time)\b", re.I)
 COURSES = re.compile(r"\b(\w*kurss\w*|\w*oppitun\w*|courses?|classes?|lessons?|training\s+course)\b", re.I)
+BOOK_SALES = re.compile(
+    r"\b(?:kirja(?:basaari|myynti|kirpputori|tori)\w*|"
+    r"book\s+(?:bazaar|sale|market|flea\s+market)s?|"
+    r"книжн\w*\s+(?:базар\w*|распродаж\w*))\b", re.I)
 FINNISH_LEARNING = re.compile(r"\b(suomen\s+kiel\w*|suomea\s+(?:oppi\w*|opiskele\w*|harjoit\w*)|(?:puhutaan|puhu|opitaan|opiskellaan|harjoitellaan)\s+suomea|finnish\s+(?:language|courses?|classes?|lessons?|conversation)|(?:learn|learning|practice|practise)\s+finnish)\b", re.I)
 LANGUAGE_ACTIVITY = re.compile(r"\b(\w*kurss\w*|\w*kielikahvila\w*|\w*keskusteluryhm\w*|\w*kieliryhm\w*|\w*opetus\w*|courses?|classes?|lessons?|language\s+caf[eé]|conversation\s+(?:group|club))\b", re.I)
 FINNISH_PRACTICE = re.compile(r"\b(suomen\s+kielen\s+(?:kurss\w*|opetu\w*|oppimi\w*|opiskel\w*|harjoit\w*)|(?:puhutaan|puhu|opitaan|opiskellaan|harjoitellaan)\s+suomea|suomea\s+(?:oppi\w*|opiskele\w*|harjoit\w*)|finnish\s+(?:language\s+)?(?:courses?|classes?|lessons?|conversation)|(?:learn|learning|practice|practise)\s+finnish)\b", re.I)
@@ -250,7 +254,7 @@ def exclusion_reason(title, description, source_categories, config, performance_
         return "children's activities"
     learning = preferences.get("allow_finnish_learning") and is_finnish_learning(title, description)
     if preferences.get("exclude_reading") and (
-            READING.search(title) or ("literature" in tags and not learning)):
+            READING.search(title) or BOOK_SALES.search(title) or ("literature" in tags and not learning)):
         return "reading activities"
     if preferences.get("exclude_courses") and COURSES.search(title) and not learning:
         return "courses"
