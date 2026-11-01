@@ -10,6 +10,7 @@ class SafeRedirects(HTTPRedirectHandler):
         redirected = super().redirect_request(request, response, code, message, headers, new_url)
         if redirected and urlsplit(request.full_url).netloc != urlsplit(new_url).netloc:
             redirected.remove_header("Authorization")
+            redirected.remove_header("X-goog-api-key")
         return redirected
 
 

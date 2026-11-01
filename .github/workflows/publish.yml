@@ -24,11 +24,11 @@ on:
         type: boolean
         default: false
       translate_preview:
-        description: "Use Ollama to translate the first 10 preview events"
+        description: "Use the configured model to translate the first 10 preview events"
         type: boolean
         default: false
       classify_preview:
-        description: "Use Ollama for advisory event classification"
+        description: "Use the configured model for advisory event classification"
         type: boolean
         default: false
       reset_state:
@@ -85,6 +85,9 @@ jobs:
       TELEGRAM_BOT_USERNAME: ${{ vars.TELEGRAM_BOT_USERNAME }}
       FAVOURITES_WORKER_URL: ${{ vars.FAVOURITES_WORKER_URL }}
       FAVOURITES_SYNC_SECRET: ${{ secrets.FAVOURITES_SYNC_SECRET }}
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'google' }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      GOOGLE_MODEL: ${{ vars.GOOGLE_MODEL }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
       OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
     steps:

@@ -2,6 +2,7 @@ import json
 import logging
 
 from .http import RemoteError
+from .model_provider import build_request, normalize_response
 
 LOG = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ def parse_translation(content):
     Never guess missing quotes/braces or publish a partial translation.
     """
     if not isinstance(content, str) or not content.strip():
-        raise ValueError("Ollama returned empty translation content")
+        raise ValueError("Model returned empty translation content")
     content = content.strip().lstrip("\ufeff")
     decoder = json.JSONDecoder()
     try:
@@ -31,12 +32,12 @@ def parse_translation(content):
                 result = candidate
                 break
         else:
-            raise ValueError(f"Ollama returned invalid translation JSON (line {exc.lineno}, column {exc.colno}, {len(content)} characters)") from None
+            raise ValueError(f"Model returned invalid translation JSON (line {exc.lineno}, column {exc.colno}, {len(content)} characters)") from None
     if not isinstance(result, dict) or any(not isinstance(result.get(k), str) or not result[k].strip() for k in ("title", "summary")):
-        raise ValueError("Ollama returned an empty or invalid translation")
+        raise ValueError("Model returned an empty or invalid translation")
     result = {key: result[key].strip() for key in ("title", "summary")}
     if len(result["title"]) > 240 or len(result["summary"]) > 1500:
-        raise ValueError("Ollama translation exceeds message limits")
+        raise ValueError("Model translation exceeds message limits")
     return result
 
 
@@ -47,7 +48,7 @@ class TranslationUnavailable(RuntimeError):
 class Translator:
     def __init__(self, http, settings, key):
         if not key:
-            raise ValueError("Set OLLAMA_API_KEY before translating")
+            raise ValueError(f"Set {settings.get('provider', 'ollama').upper()}_API_KEY before translating")
         self.http, self.settings, self.key = http, settings, key
 
     def translate(self, event, language):
@@ -65,11 +66,14 @@ class Translator:
         }
         for attempt in range(2):
             try:
-                response = self.http.request(self.settings["url"], method="POST", body=payload,
-                    headers={"Authorization": f"Bearer {self.key}"}, service="Ollama", timeout=90)
+                provider = self.settings.get("provider", "ollama")
+                url, headers, body = build_request(provider, self.settings["url"], self.key, payload)
+                response = self.http.request(url, method="POST", body=body,
+                    headers=headers, service=provider, timeout=90)
+                response = normalize_response(provider, response)
             except RemoteError as exc:
                 if exc.status in {401, 403, 404, 429}:
-                    raise TranslationUnavailable("Ollama access/model/quota unavailable; remaining events stay queued") from None
+                    raise TranslationUnavailable("Model provider access/model/quota unavailable; remaining events stay queued") from None
                 raise
             message = response.get("message") if isinstance(response, dict) else None
             content = message.get("content") if isinstance(message, dict) else None

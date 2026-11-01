@@ -90,7 +90,7 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
                 checkpoint(store)
                 return sent, failures
             except TranslationUnavailable:
-                LOG.error("Ollama is unavailable or its allowance is exhausted; remaining events stay queued")
+                LOG.error("Model provider is unavailable or its allowance is exhausted; remaining events stay queued")
                 checkpoint(store)
                 return sent, failures + 1
             except Exception as exc:
@@ -188,7 +188,7 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
 
 def selection_report(store, pending, decisions, config, classifier, deadline):
     report = {'classifier_mode': config.get('selection', {}).get('classifier_mode', 'off'),
-              'classifier_model': config['ollama']['model'], 'prompt_version': PROMPT_VERSION,
+              'classifier_model': config['llm']['model'], 'prompt_version': PROMPT_VERSION,
               'classification_requested': bool(classifier),
               'decisions': decisions, 'classifications': []}
     if not classifier:
@@ -236,14 +236,15 @@ def run(args):
     channels = {language: os.getenv(f"TELEGRAM_CHANNEL_{language.upper()}", "").strip() for language in config["languages"]}
     # Receipts and released holds must still be persisted after the work deadline.
     remote = ReleaseState(HttpClient(), os.getenv("GITHUB_TOKEN"), os.getenv("GITHUB_REPOSITORY")) if args.release_state else None
-    needs_translation = (args.mode == 'publish' and (not digest_only or os.getenv('OLLAMA_API_KEY'))) or args.translate
-    translator = Translator(http, config["ollama"], os.getenv("OLLAMA_API_KEY")) if needs_translation else None
+    model_key = os.getenv(f"{config['llm']['provider'].upper()}_API_KEY")
+    needs_translation = (args.mode == 'publish' and (not digest_only or model_key)) or args.translate
+    translator = Translator(http, config["llm"], model_key) if needs_translation else None
     from .favourites import Favourites
     telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels,
                         favourites=Favourites.from_environment(http)) if args.mode == "publish" else None
-    classifier = (Classifier(http, config['ollama'], os.getenv('OLLAMA_API_KEY'))
+    classifier = (Classifier(http, config['llm'], model_key)
                   if config.get('selection', {}).get('classifier_mode') == 'shadow'
-                  and os.getenv('OLLAMA_API_KEY') and (args.mode == 'publish' or getattr(args, 'classify', False)) else None)
+                  and model_key and (args.mode == 'publish' or getattr(args, 'classify', False)) else None)
 
     # Preview always uses a temporary copy, including translation caches.
     with tempfile.TemporaryDirectory() as temporary:
@@ -375,7 +376,7 @@ def main():
     parser.add_argument("--reset-state", action="store_true", help="Clear history and repeat first launch; may duplicate posts. Preview only simulates this.")
     parser.add_argument("--requeue-upcoming", action="store_true", help="Queue all collected upcoming events within the discovery horizon, preserving successful posts")
     parser.add_argument("--translate", action="store_true", help="Translate preview entries without publishing")
-    parser.add_argument("--classify", action="store_true", help="Use Ollama for advisory preview classification")
+    parser.add_argument("--classify", action="store_true", help="Use the configured model for advisory preview classification")
     parser.add_argument('--weekly-digest', action='store_true', help='Preview/publish weekly digest from saved events; Sunday publication or Monday catch-up')
     parser.add_argument('--daytime-only', action='store_true', help='Allow work only 08:00–22:00 Helsinki, including manual workflow runs')
     parser.add_argument("--limit", type=int, default=10, help="Maximum preview entries")

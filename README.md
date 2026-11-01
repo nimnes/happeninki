@@ -68,7 +68,7 @@ Suppressed listings, disabled sources and known cancellations are excluded. Its
 information reflects the latest saved scan, normally Sunday's 09:00 daily run.
 
 Cached Russian/English translations are reused. Only missing translations require
-Ollama access; a fully cached digest can be sent without a model key. Descriptions
+model access; a fully cached digest can be sent without a model key. Descriptions
 are shortened to fit one Telegram message. Unusually long source links may reduce
 the event count below ten; the digest is never split into multiple posts. Nothing
 is posted when there are no eligible events.
@@ -181,7 +181,7 @@ The `[selection]` settings control the seven-post limit, minimum score,
 advisory classifier. `minimum_score = 0` disables the interest threshold.
 `enabled = false`
 restores the original queue behavior; `classifier_mode = "off"` disables only
-model classification. Classification uses the configured Ollama model and key,
+model classification. Classification uses the configured provider model and key,
 with at most five candidate classifications per run. It extracts audience, format
 and actual performance language, requires source quotes, and caches results by
 source content, model and prompt version. Unknown fields stay unknown. A failed
@@ -242,17 +242,17 @@ the confirmed post normally.
 ## A small bot without a server
 
 ```text
-Event sources → Collection and filtering → Ollama translation → Telegram
+Event sources → Collection and filtering → model translation → Telegram
                          ↕
                    Saved event history
 ```
 
-GitHub Actions runs the bot on a schedule. Ollama Cloud translates the event
+GitHub Actions runs the bot on a schedule. Google Gemma (or Ollama) translates the event
 text, and a small database saved in a GitHub release keeps track of events and
 published messages between runs.
 
 There is no always-running server or separate database service to host. Modest
-usage can fit within GitHub and Ollama's free allowances, though translation
+usage can fit within GitHub and Google's free allowances, though translation
 capacity depends on the model and your account. If the allowance runs out,
 unpublished events stay queued for a later run.
 
@@ -268,7 +268,7 @@ You will need:
 - A Telegram bot created through [@BotFather](https://t.me/BotFather).
 - One or two Telegram channels, with the bot added as an administrator allowed
   to post and edit its messages.
-- An Ollama Cloud account, API key and an accessible model.
+- A Google Gemini API key (or Ollama API key when selected).
 
 ### 1. Add your settings
 
@@ -279,14 +279,17 @@ In your repository, open **Settings → Secrets and variables → Actions** and 
 | `TELEGRAM_BOT_TOKEN` | The token from BotFather |
 | `TELEGRAM_CHANNEL_RU` | Russian channel ID or `@username`, if used |
 | `TELEGRAM_CHANNEL_EN` | English channel ID or `@username`, if used |
-| `OLLAMA_API_KEY` | Your Ollama Cloud API key |
+| `GOOGLE_API_KEY` | Google Gemini API key (default provider) |
+| `OLLAMA_API_KEY` | Ollama API key (only when selected) |
 
 Set at least one channel. Leave the other secret empty or omit it to disable
 that language. Numeric channel IDs are preferable because they stay the same
 when a channel's username changes. Keep tokens in secrets, never in source files.
 
-The default model is `gemma4:31b-cloud`. To choose another, add an Actions
-**variable** named `OLLAMA_MODEL` with a model available to your account.
+The default provider is Google with `gemma-4-31b-it`. Override it with Actions
+variables `LLM_PROVIDER` and `GOOGLE_MODEL`. The `[google]` and `[ollama]` tables
+in `config.toml` retain separate settings; `[llm].provider` selects the local
+default. An environment `LLM_PROVIDER` overrides that choice.
 
 ### 2. Preview the posts
 
@@ -296,7 +299,7 @@ translated event posts. Download the run's output artifact and open
 `preview.json` to see the results.
 
 Preview sends nothing to Telegram and leaves saved history unchanged.
-Translated previews use your Ollama allowance.
+Translated previews use your selected provider's quota.
 
 ### 3. Start publishing
 
@@ -422,7 +425,7 @@ To explore the sources locally, install Python 3.12 and run:
 python3 -m happeninki --mode preview
 ```
 
-This saves a preview to `data/preview.json` and needs no Telegram or Ollama
+This saves a preview to `data/preview.json` and needs no Telegram or model
 credentials. For local translation or publishing, supply the settings listed in
 [.env.example](.env.example) through your environment; `.env` files are not loaded
 automatically. Python package installation is not required.
@@ -438,3 +441,60 @@ disabled after 60 days without activity, so check Actions periodically. If a run
 reports a database upload failure, keep its recovery artifact before retrying:
 it may contain publication history needed to avoid duplicate posts.
 
+## Translation provider and Google API key
+
+Google is the default provider, using `gemma-4-31b-it` through the Gemini API.
+Ollama remains available through configuration; the bot never silently falls
+back to a paid provider.
+
+### Create and install the key
+
+1. Open [Google AI Studio API keys](https://aistudio.google.com/api-keys), sign
+   in, and complete Google's setup/terms if prompted.
+2. Create an API key in a new or existing Google Cloud project. Use the default
+   Gemini API restriction. You do not need to enable paid billing for Gemma's
+   currently listed free API access.
+3. In this GitHub repository, open **Settings → Secrets and variables → Actions
+   → Secrets → New repository secret**. Name it `GOOGLE_API_KEY` and paste the key
+   as its value. Never put the key in a repository variable, commit, or chat.
+4. Under the **Variables** tab, set `LLM_PROVIDER` to `google`. Optionally set
+   `GOOGLE_MODEL` to `gemma-4-31b-it` (already the default).
+5. Deploy the updated code before running the workflow. Keep `OLLAMA_API_KEY`
+   if you want the option to switch back later.
+
+For local runs, export `LLM_PROVIDER=google` and `GOOGLE_API_KEY`, or use the
+project's supported local environment setup. `.env.example` lists the settings;
+it contains no real credentials.
+
+Check the project's actual requests-per-minute, tokens-per-minute and daily
+quotas in [AI Studio](https://aistudio.google.com/). Quotas apply per project:
+two bots using keys from the same project share capacity. Multiple keys do not
+increase that quota. Free access and availability may change.
+
+### Switch back to Ollama
+
+Set the GitHub Actions variable `LLM_PROVIDER` to `ollama` and ensure the
+`OLLAMA_API_KEY` repository secret is present. Optionally set `OLLAMA_MODEL`
+(default `gemma4:31b-cloud`). No code change is required. Locally use the same
+environment settings. Google and Ollama keep separate model names and keys.
+
+The adapter uses Google's native `generateContent` endpoint or Ollama's chat
+endpoint, with thinking disabled and the original editorial prompts preserved.
+JSON is requested in prompts and validated locally. Truncated or blocked Google
+responses are rejected rather than published. Existing article/event history
+and Telegram delivery handling are unchanged.
+
+References: [Google Gemma API](https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api),
+[API keys](https://ai.google.dev/gemini-api/docs/api-key),
+[pricing](https://ai.google.dev/gemini-api/docs/pricing#gemma-4),
+[quotas](https://ai.google.dev/gemini-api/docs/rate-limits).
+
+For local runs, export the environment variables before invoking the bot; the
+application does not automatically load `.env` files.
+Both translation and optional advisory classification use the selected provider.
+
+Preview translations without publishing:
+
+```bash
+python -m happeninki --mode preview --translate --limit 3
+```

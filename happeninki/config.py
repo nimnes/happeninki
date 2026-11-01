@@ -55,6 +55,14 @@ def load_config(path="config.toml"):
         raise ValueError("Tampere window_days must be between 1 and 60.")
     if os.getenv("OLLAMA_MODEL"):
         config["ollama"]["model"] = os.environ["OLLAMA_MODEL"]
+    provider = os.getenv("LLM_PROVIDER", config.get("llm", {}).get("provider", "google")).lower().strip()
+    if provider not in {"google", "ollama"}:
+        raise ValueError("LLM_PROVIDER must be google or ollama")
+    settings = dict(config[provider])
+    settings["provider"] = provider
+    for name in ("model", "url"):
+        settings[name] = os.getenv(f"{provider.upper()}_{name.upper()}") or settings[name]
+    config["llm"] = settings
     selection = config.setdefault('selection', {})
     if not isinstance(selection, dict):
         raise ValueError('selection must be a table')

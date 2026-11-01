@@ -244,7 +244,7 @@ class StateTests(unittest.TestCase):
             release_state=False, database=str(self.path), initialize=False,
             reset_state=True, requeue_upcoming=False)
         with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "fake", "TELEGRAM_CHANNEL_RU": "ru",
-                                       "TELEGRAM_CHANNEL_EN": "", "OLLAMA_API_KEY": "fake"}):
+                                       "TELEGRAM_CHANNEL_EN": "", "GOOGLE_API_KEY": "fake"}):
             with self.assertRaisesRegex(RuntimeError, "Collection incomplete"):
                 run(args)
         self.assertEqual(self.store.publication(key, "ru", HASHES["ru"])["message_id"], 123)

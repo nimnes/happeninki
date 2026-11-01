@@ -51,6 +51,15 @@ excluded_source_keys = ["tampere:6a07df00fafad1b3a6929427", "tampere:69367cb0faf
 # Additional words/phrases to exclude from event titles, case-insensitive.
 exclude_title_keywords = ["День пенсионера", "Eläkeläispäivä", "Pensioners' day", "Pensioners’ day", "Seniors' day", "Seniors’ day"]
 
+# Switch provider to "ollama" to reuse the retained Ollama configuration.
+[llm]
+provider = "google"
+
+[google]
+url = "https://generativelanguage.googleapis.com/v1beta"
+model = "gemma-4-31b-it"
+max_description_chars = 3500
+
 [ollama]
 url = "https://ollama.com/api/chat"
 model = "gemma4:31b-cloud"

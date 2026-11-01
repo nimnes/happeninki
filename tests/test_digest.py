@@ -308,7 +308,7 @@ class DigestTests(unittest.TestCase):
                 patch('happeninki.__main__.Translator', side_effect=AssertionError('Use cached translations')), \
                 patch('happeninki.__main__.Telegram', return_value=telegram), \
                 patch('happeninki.__main__.datetime') as clock, \
-                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru', 'TELEGRAM_CHANNEL_EN': 'en', 'OLLAMA_API_KEY': ''}):
+                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru', 'TELEGRAM_CHANNEL_EN': 'en', 'GOOGLE_API_KEY': '', 'OLLAMA_API_KEY': ''}):
             clock.now.return_value = datetime.fromisoformat('2026-10-11T18:00:00+03:00')
             self.assertEqual(run(args), 0)
         self.assertEqual(len(telegram.calls), 2)
@@ -325,7 +325,7 @@ class DigestTests(unittest.TestCase):
         with patch('happeninki.__main__.collect', side_effect=AssertionError('No source requests')), \
                 patch('happeninki.__main__.Telegram', return_value=sender), \
                 patch('happeninki.__main__.datetime') as clock, \
-                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru', 'TELEGRAM_CHANNEL_EN': 'en', 'OLLAMA_API_KEY': ''}):
+                patch.dict('os.environ', {'TELEGRAM_CHANNEL_RU': 'ru', 'TELEGRAM_CHANNEL_EN': 'en', 'GOOGLE_API_KEY': '', 'OLLAMA_API_KEY': ''}):
             clock.now.return_value = datetime.fromisoformat('2026-10-12T08:00:00+03:00')
             self.assertEqual(run(args), 0)
         self.assertEqual(len(sender.calls), 2)
