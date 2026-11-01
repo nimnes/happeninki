@@ -28,16 +28,16 @@ def digest_week(today):
 
 
 def weekly_event(event, start, end):
-    """Project occurrences into the week without changing stored event history."""
-    if not event.overlaps(start, end):
-        return None
+    """Select occurrences contained in the week, preserving stored history."""
+    def within_week(item):
+        return start <= date.fromisoformat(item['start'][:10]) <= date.fromisoformat(item['end'][:10]) <= end
+
     if event.dates:
-        dates = [dict(item) for item in event.dates
-                 if date.fromisoformat(item['start'][:10]) <= end and date.fromisoformat(item['end'][:10]) >= start]
+        dates = [dict(item) for item in event.dates if within_week(item)]
+        if not dates:
+            return None
         return replace(event, dates=dates, start=dates[0]['start'], end=max(item['end'] for item in dates))
-    if event.date_only:
-        return replace(event, start=max(event.start[:10], start.isoformat()), end=min(event.end[:10], end.isoformat()))
-    return event
+    return event if within_week({'start': event.start, 'end': event.end}) else None
 
 
 def shortlist(events, config, today, language):

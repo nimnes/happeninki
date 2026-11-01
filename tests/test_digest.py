@@ -156,12 +156,12 @@ class DigestTests(unittest.TestCase):
 
     def test_exhibitions_and_per_language_delivery(self):
         exhibition = event(2, title='Museum exhibition', category='exhibitions', source_categories=['exhibitions'],
-                           date_only=True, start='2026-10-01', end='2026-10-30')
+                           date_only=True, start='2026-10-12', end='2026-10-18')
         russian = event(3, delivery_languages=['ru'])
         english = shortlist([exhibition, russian], self.config, SUNDAY, 'en')
         self.assertEqual(len(english), 1)
         self.assertEqual((english[0][0].start, english[0][0].end), ('2026-10-12', '2026-10-18'))
-        self.assertEqual(exhibition.start, '2026-10-01')
+        self.assertEqual(exhibition.start, '2026-10-12')
         self.assertEqual(len(shortlist([exhibition, russian], self.config, SUNDAY, 'ru')), 2)
         self.config['sources']['tampere']['enabled'] = False
         self.assertEqual(shortlist([exhibition], self.config, SUNDAY, 'en'), [])
@@ -169,7 +169,7 @@ class DigestTests(unittest.TestCase):
     def test_digest_keeps_exhibition_and_excludes_its_artist_meeting(self):
         exhibition = event(1, title='Vaellus-näyttely', description='Taiteilijatapaaminen on lauantaina.',
                            category='exhibitions', source_categories=['exhibitions'],
-                           date_only=True, start='2026-10-01', end='2026-10-30')
+                           date_only=True, start='2026-10-13', end='2026-10-17')
         meeting = event(2, title='Taiteilijatapaaminen Vaellus-näyttelyn merkeissä',
                         category='exhibitions', source_categories=['exhibitions'])
         self.assertEqual([item.source_id for item, _ in shortlist([meeting, exhibition], self.config, SUNDAY, 'en')], ['1'])
@@ -181,6 +181,30 @@ class DigestTests(unittest.TestCase):
         selected = shortlist([original], self.config, SUNDAY, 'en')[0][0]
         self.assertEqual(selected.dates, [dates[1]])
         self.assertEqual(original.dates, dates)
+
+    def test_continuous_events_must_fit_entirely_in_digest_week(self):
+        for date_only in (True, False):
+            for first, last in (('09-30', '12-31'), ('10-11', '10-15'),
+                                ('10-15', '10-19'), ('10-05', '10-11'), ('10-19', '10-20')):
+                with self.subTest(date_only=date_only, first=first, last=last):
+                    start, end = f'2026-{first}', f'2026-{last}'
+                    if not date_only:
+                        start += 'T10:00:00+03:00'
+                        end += 'T20:00:00+03:00'
+                    original = event(category='exhibitions', source_categories=['exhibitions'],
+                                     date_only=date_only, start=start, end=end)
+                    self.assertEqual(shortlist([original], self.config, SUNDAY, 'en'), [])
+                    self.assertEqual((original.start, original.end), (start, end))
+
+    def test_recurring_events_skip_continuous_occurrences_outside_week(self):
+        dates = [{'start': '2026-09-30', 'end': '2026-12-31'},
+                 {'start': '2026-10-12', 'end': '2026-10-18'}]
+        original = event(category='exhibitions', source_categories=['exhibitions'], date_only=True,
+                         start=dates[0]['start'], end=dates[0]['end'], dates=dates)
+        selected = shortlist([original], self.config, SUNDAY, 'en')[0][0]
+        self.assertEqual(selected.dates, [dates[1]])
+        self.assertEqual(original.dates, dates)
+        self.assertEqual(shortlist([replace(original, dates=dates[:1])], self.config, SUNDAY, 'en'), [])
 
     def test_message_is_linked_escaped_and_fits_one_post(self):
         start, end = next_week(SUNDAY)

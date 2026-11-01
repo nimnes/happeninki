@@ -28,6 +28,10 @@ from both daily posts and weekly digests.
 
 ## How it works
 
+Weekly digests include events and individual recurring occurrences that fit entirely
+within the digest's Monday–Sunday week. Continuous events extending outside that
+week, such as multi-month exhibitions, are skipped in the digest.
+
 Optional personal favourites add a **⭐ Save event** button to individual event
 posts. Weekly digests have no save buttons. Each person gets their own private
 list in the bot chat, with upcoming events, source links and removal buttons.
