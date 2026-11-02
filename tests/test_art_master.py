@@ -82,6 +82,8 @@ class ArtMasterTests(unittest.TestCase):
     def test_changed_calendar_is_reported_as_source_failure(self):
         self.config["sources"]["tampere"]["enabled"] = False
         self.config["sources"]["syo"]["enabled"] = False
+        self.config["sources"]["helsinki"]["enabled"] = False
+        self.config["sources"]["turku"]["enabled"] = False
         class Http:
             def request(self, *args, **kwargs):
                 return b'<html>Unexpected page</html>'

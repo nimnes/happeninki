@@ -23,7 +23,7 @@ def load_config(path="config.toml"):
                 "exclude_workshops", "exclude_games", "exclude_standup", "exclude_lectures", "exclude_artist_meetings", "exclude_nightclubs", "allow_church_music"):
         if key in filters and not isinstance(filters[key], bool):
             raise ValueError(f"filters.{key} must be true or false")
-    for key in ("excluded_source_categories", "excluded_source_keys", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists", "international_music_artists", "finnish_music_artists", "church_choir_works"):
+    for key in ("travel_performance_cities", "travel_concert_venues", "excluded_source_categories", "excluded_source_keys", "exclude_title_keywords", "nightclub_venues", "music_venues", "music_artists", "international_music_artists", "finnish_music_artists", "church_choir_works"):
         values = filters.get(key, [])
         if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
             raise ValueError(f"filters.{key} must be a list of nonempty strings")
@@ -48,6 +48,18 @@ def load_config(path="config.toml"):
         for key in ("delivery_languages", "performance_languages"):
             if any(value not in {"ru", "en"} for value in art_master[key]):
                 raise ValueError(f"sources.art_master.{key} only supports ru and en")
+    for name in ('helsinki', 'turku'):
+        settings = config['sources'].get(name, {})
+        if not settings.get('enabled'):
+            continue
+        from .models import safe_url
+        if not safe_url(settings.get('base_url')):
+            raise ValueError(f'sources.{name}.base_url must be an HTTP(S) URL')
+        if settings.get('municipalities') != [name.capitalize()]:
+            raise ValueError(f'sources.{name}.municipalities must contain only {name.capitalize()}')
+        if name == 'turku' and any(not isinstance(settings.get(key), str) or not settings[key].strip()
+                                   for key in ('collection_id', 'area_id')):
+            raise ValueError('Turku needs collection_id and area_id')
     for key in ("discovery_days", "max_events_per_run", "run_budget_seconds"):
         if config[key] <= 0:
             raise ValueError(f"{key} must be positive.")
@@ -77,6 +89,9 @@ def load_config(path="config.toml"):
     if (not isinstance(selection['minimum_score'], int) or isinstance(selection['minimum_score'], bool)
             or selection['minimum_score'] < 0):
         raise ValueError('selection.minimum_score must be a nonnegative integer')
+    bonus = selection.setdefault('tampere_priority_bonus', 10)
+    if not isinstance(bonus, int) or isinstance(bonus, bool) or bonus < 0:
+        raise ValueError('selection.tampere_priority_bonus must be a nonnegative integer')
     for key in ('daily_limit', 'lead_days', 'reconsider_days', 'classification_budget'):
         value = selection.get(key, 1)
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:

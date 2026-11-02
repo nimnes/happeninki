@@ -285,12 +285,49 @@ def exclusion_reason(title, description, source_categories, config, performance_
     return None
 
 
+
+def travel_performance_kind(event, config):
+    """Conservative out-of-town selection; venue lists are editorial proxies."""
+    preferences = config.get('filters', {})
+    if event.municipality not in preferences.get('travel_performance_cities', []):
+        return None
+    title = plain_text(event.title)
+    introduction = re.split(r'[.!?]', plain_text(event.description), maxsplit=1)[0]
+    text = title + '. ' + introduction
+    tags = {tag.casefold() for tag in event.source_categories}
+    small = re.search(
+        r'\b(?:community|amateur|student|youth|school)\s+(?:theatr[ei]\w*|production|play|concert)|'
+        r'\b(?:harrastaja\w*|oppilas\w*|koululais\w*|kerho\w*|kielikahvila\w*|'
+        r'любительск\w*|самодеятельн\w*|кружок|кружка)\b', text, re.I)
+    if small:
+        return 'small'
+    theatre = (tags.intersection({'theatre', 'theater', 'teatteri', 'teatteri ja tanssi', 'театр', 'musicals', 'musical'})
+               or THEATRE.search(text)
+               or re.search(r'\b(?:спектакл\w*|мюзикл\w*|musicals?)\b', text, re.I))
+    if theatre:
+        return 'theatre'
+    concert = (event.category == 'music' or tags.intersection({'concerts', 'concert', 'konsertit', 'концерты'})
+               or re.search(r'\b(?:concerts?|konsertti\w*|концерт\w*)\b', text, re.I))
+    venue = event.venue or event.address
+    small_room = re.search(r'\b(?:foyer|lobby|lämpiö\w*|aula|ateljee\w*|pieni\s+sali|small\s+hall|камерный\s+зал)\b',
+                           venue + ' ' + title, re.I)
+    if concert and not small_room and venue_matches(venue, preferences.get('travel_concert_venues', [])):
+        return 'concert'
+    return 'small'
+
 def event_exclusion_reason(event, config):
     if event.source_key in config.get('filters', {}).get('excluded_source_keys', []):
         return 'explicitly excluded event'
     municipalities = config["sources"].get(event.source, {}).get("municipalities", config["municipalities"])
     if event.municipality not in municipalities or event.category not in config["categories"]:
         return "area or category"
+    travel_kind = travel_performance_kind(event, config)
+    if travel_kind == 'small':
+        return 'outside destination theatre, musicals and major concerts'
+    if travel_kind == 'concert':
+        # Use this city's major concert venues instead of Tampere's venue list.
+        preferences = dict(config.get('filters', {}), music_venues=config['filters']['travel_concert_venues'])
+        config = dict(config, filters=preferences)
     tags = list(event.source_categories)
     if event.category == "music" and not set(tags).intersection(config["category_mapping"]["music"]):
         tags.append(config["category_mapping"]["music"][0])

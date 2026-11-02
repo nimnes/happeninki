@@ -10,7 +10,16 @@ to follow several Finnish event calendars.
 
 It covers **Tampere, Nokia, Ylöjärvi, Pirkkala, Kangasala and Lempäälä**, with a focus
 on concerts, exhibitions, festivals, food campaigns and other cultural events.
-The Russian channel also includes Art Master events in **Jyväskylä and Helsinki**.
+The Russian channel also searches for Russian-language events in **Helsinki and Turku**
+using their city calendars, alongside Art Master events in **Jyväskylä, Helsinki and Turku**.
+City-calendar events require explicit event-language metadata or a statement that
+the event is held in Russian; a Russian translation alone does not qualify.
+For Helsinki and Turku, selection is limited to stage plays, musicals and concerts
+at the major venues listed in `filters.travel_concert_venues`. Community clubs,
+amateur/student productions and identified small-room/foyer concerts are excluded.
+Venue selection is an editorial proxy for scale, not verified attendance.
+Existing exclusions and editorial publishing limits still apply. Coverage depends
+on listings in these sources and cannot guarantee every event in either city.
 The area and categories can be extended as the project grows.
 
 By default, it skips children's activities, book clubs and reading sessions
@@ -120,7 +129,9 @@ to previously published posts do not use new-post slots.
 | --- | --- | --- |
 | [Tampere event calendar](https://tapahtumat.tampere.fi) | Tampere and the configured surrounding municipalities | Russian and English |
 | [SYÖ!-viikot](https://syoviikot.fi) | Restaurant campaigns in the configured municipalities | Russian and English |
-| [Art Master](https://ru.art-master.fi/afisha) | Tampere area, Jyväskylä and Helsinki | Russian only |
+| [Art Master](https://ru.art-master.fi/afisha) | Tampere area, Jyväskylä, Helsinki and Turku | Russian only |
+| [Helsinki Linked Events](https://api.hel.fi/linkedevents/v1/) | Helsinki, Russian-language events | Russian only |
+| [Turku event calendar](https://kalenteri.turku.fi) | Turku, explicitly Russian-language events | Russian only |
 
 Coverage depends on what organizers list in these sources. Art Master's extra
 cities do not expand the Tampere calendar scan. Children's shows remain excluded,
@@ -129,6 +140,12 @@ The SYÖ! connection is included, but still needs verification with a published
 campaign when the next one becomes available.
 
 ## Event selection and comparison
+
+Eligible Tampere events receive a 10-point ranking bonus over events in nearby
+municipalities, configurable with `selection.tampere_priority_bonus` (0 disables it).
+This applies to daily selection and the weekly digest. The bonus affects ordering
+only: each event must still meet the interest threshold and existing exclusions.
+A substantially stronger event elsewhere can still rank ahead of a Tampere event.
 
 The approved music venues, artist lists and church classical/choir/jazz
 exception still determine music eligibility. Ranking favors explicit English or

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from .models import Event, parse_datetime, plain_text, safe_url
 from .filters import exclusion_reason, is_finnish_learning
 from .art_master import ArtMasterSource
+from .linked_events import HelsinkiSource
 
 LOG = logging.getLogger(__name__)
 FREE_CATEGORY = "6170601b7a45476ff366cb18"
@@ -35,16 +36,16 @@ def price_for(page):
     return f"{low:g} €" if high is None or high == low else f"{low:g}–{high:g} €"
 
 
-def parse_tampere(page, municipality, config):
+def parse_tampere(page, municipality, config, *, source="tampere", performance_languages=(), delivery_languages=()):
     if page.get("pageType") != "event" or page.get("privacy", "public") != "public":
         return None
     title = plain_text(page.get("name"))
     description = plain_text(page.get("descriptionLong") or page.get("descriptionShort"))
     source_categories = page.get("globalContentCategories", [])
-    published = 'tampere:' + str(page.get('_id')) in config.get('_published_source_keys', ())
-    if not title or (not published and exclusion_reason(title, description, source_categories, config, venue=plain_text((page.get("locations") or [{}])[0].get("address")))):
+    published = source + ':' + str(page.get('_id')) in config.get('_published_source_keys', ())
+    if not title or (not published and exclusion_reason(title, description, source_categories, config, performance_languages=performance_languages, venue=plain_text((page.get("locations") or [{}])[0].get("address")))):
         return None
-    category = category_for(page, config) or ('culture' if published else None)
+    category = category_for(page, config) or ('culture' if published or source == 'turku' else None)
     if not category:
         return None
     timezone = ZoneInfo(config["timezone"])
@@ -84,14 +85,15 @@ def parse_tampere(page, municipality, config):
     if not source_id:
         raise ValueError("Matching event has no ID")
     return Event(
-        source="tampere", source_id=source_id, title=title,
+        source=source, source_id=source_id, title=title,
         description=description,
-        url=f"{config['sources']['tampere']['base_url']}/fi-FI/page/{source_id}",
+        url=f"{config['sources'][source]['base_url']}/fi-FI/page/{source_id}",
         municipality=municipality, venue=venue, address=address, category=category,
         start=start.isoformat(), end=end.isoformat(), dates=dates, date_only=date_only,
         price=price_for(page), cancelled=bool(details.get("isCancelled")),
         ticket_url=safe_url(details.get("urlPurchaseTicket", "")),
         source_categories=source_categories,
+        performance_languages=list(performance_languages), delivery_languages=list(delivery_languages),
         image_url=(f"https://cdn.townbase.com/images/{page['imageDesktop']}"
                    if re.fullmatch(r"[0-9a-f]{64}", str(page.get("imageDesktop", ""))) else ""),
     )
@@ -185,7 +187,9 @@ class SyoSource:
 
 def collect(config, http, start, end):
     events, failures = [], []
-    for source_class in (TampereSource, SyoSource, ArtMasterSource):
+    from .turku import TurkuSource
+    source_classes = (TampereSource, SyoSource, ArtMasterSource, HelsinkiSource, TurkuSource)
+    for source_class in source_classes:
         if not config["sources"].get(source_class.name, {}).get("enabled", False):
             continue
         try:
@@ -195,6 +199,6 @@ def collect(config, http, start, end):
         except Exception as exc:
             LOG.error("%s failed: %s", source_class.name, exc)
             failures.append(source_class.name)
-    if not any(config["sources"].get(name, {}).get("enabled", False) for name in ("tampere", "syo", "art_master")):
+    if not any(config["sources"].get(name, {}).get("enabled", False) for name in (source.name for source in source_classes)):
         raise ValueError("Enable at least one event source")
     return sorted(events, key=lambda e: (e.start, e.title)), failures

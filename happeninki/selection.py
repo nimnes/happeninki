@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date, datetime
 
-from .filters import event_exclusion_reason, church_music_eligible, venue_matches, has_allowed_theatre_language, notable_church_choir, programme_text, artist_matches, international_music_artist, domestic_music_only
+from .filters import event_exclusion_reason, church_music_eligible, venue_matches, has_allowed_theatre_language, notable_church_choir, programme_text, artist_matches, international_music_artist, domestic_music_only, travel_performance_kind
 from .models import normalized, plain_text
 
 
@@ -44,20 +44,32 @@ def performance_languages(event):
         if language != 'fi' and has_allowed_theatre_language(title, description, [language]):
             languages.add(language)
         adjective = {'en': 'englanninkielinen', 'ru': 'venäjänkielinen', 'fi': 'suomenkielinen'}[language]
-        patterns = (r'\b(?:performance language|event language|language of performance)\s*:\s*' + names[0] + r'\b',
+        patterns = (r'\b(?:performance language|event language|language of performance|language)\s*:\s*' + names[0] + r'\b',
                     r'\b(?:performed|sung|spoken|presented)\s+in\s+' + names[0] + r'\b',
                     r'\b(?:esitetään|lauletaan|esityskieli\s*(?:on|:)?)\s+' + names[1] + r'\b',
                     r'\b' + adjective + r'\s+(?:esitys|konsertti|näytelmä)\b',
-                    r'\b' + names[0] + r'[- ]language\s+(?:performance|concert|show)\b')
+                    r'\b' + names[0] + r'[- ]language\s+(?:performance|concert|show|event)\b')
+        if language == 'ru':
+            patterns += (
+                r'\b(?:tapahtuman\s+kieli|kieli)\s*:\s*venäjä\b',
+                r'\b(?:tapahtuma|opastus|kierros|konsertti|esitys)\s+venäjäksi\b',
+                r'\bvenäjänkielinen\s+(?:tapahtuma|opastus|kierros)\b',
+                r'\bязык\s+(?:мероприятия|выступления)\s*:\s*русский\b',
+                r'\b(?:мероприятие|концерт|экскурсия|лекция)\s+на\s+русском\s+языке\b',
+            )
         for pattern in patterns:
             for match in re.finditer(pattern, text, re.I):
                 context = text[max(0, match.start() - 30):match.start()]
-                if not re.search(r'\b(?:not|never|ei|previously|aiemmin)\b', context, re.I):
+                if not re.search(r'\b(?:not|never|ei|не|previously|aiemmin)\b', context, re.I):
                     languages.add(language)
     if re.search(r'\besityskieli\s*(?:on|:)?\s*suomi\b', text, re.I) and not re.search(
             r'\besityskieli\s+ei\s+ole\s+suomi\b', text, re.I):
         languages.add('fi')
     return languages
+
+
+def location_priority(event, config):
+    return config.get('selection', {}).get('tampere_priority_bonus', 10) if event.municipality == 'Tampere' else 0
 
 
 def score_event(event, config, today, now=None):
@@ -77,7 +89,9 @@ def score_event(event, config, today, now=None):
         r'\b(?:\w*jazz\w*|klassinen|klassisen|klassista|classical|barokki\w*|baroque|'
         r'kamarimusi\w*|chamber\s+music|джаз\w*|классическ\w*)\b',
         programme_text(event.title, event.description) + ' ' + ' '.join(event.source_categories), re.I)
-    venue_only = event.category == 'music' and not (preferred or accessible_programme)
+    destination_concert = travel_performance_kind(event, config) == 'concert'
+    venue = venue or destination_concert
+    venue_only = event.category == 'music' and not (preferred or accessible_programme or destination_concert)
     components = {'preference_fit': 40 if preferred else 30 if event.category in {'music', 'festivals'} else 25,
                   'programme_context': 10 if preferred or venue else 0,
                   'language_accessibility': language_fit,
@@ -125,12 +139,14 @@ def rank_pending(store, pending, config, today, hashes, now=None):
             status, reason = 'skipped', 'reconsideration window expired'
         info = {'source_key': event.source_key, 'title': event.title, 'score': score, 'components': components, 'status': status, 'reason': reason,
                 'online_interest': 'unknown', 'update_languages': existing}
+        info['location_priority'] = location_priority(event, config)
+        info['ranking_score'] = score + info['location_priority']
         info['next_occurrence'] = event.next_occurrence(today, now)
         decisions[event_id] = info
         store.record_editorial(event_id, key, status, info)
         if new and status == 'candidate':
             candidates.append((event_id, event, new))
-    candidates.sort(key=lambda item: (-decisions[item[0]]['score'], decisions[item[0]]['next_occurrence'], item[1].source_key))
+    candidates.sort(key=lambda item: (-decisions[item[0]]['ranking_score'], decisions[item[0]]['next_occurrence'], item[1].source_key))
     # Suppress duplicate listings conservatively, including already published ones.
     known = store.published_performances(hashes)
     seen = set(known)

@@ -10,6 +10,9 @@ exclude_title_patterns = ["(?i)\\b\\w*(harrastusryhmä|harrastusryhmät|viikkotu
 
 # Personal preferences. Set an exclusion to false to include that type again.
 [filters]
+# Out-of-town trips: stage plays/musicals and concerts at selected major venues.
+travel_performance_cities = ["Helsinki", "Turku"]
+travel_concert_venues = ["Savoy-teatteri", "Savoy Theatre", "Kulttuuritalo", "Musiikkitalo", "Finlandia-talo", "Logomo", "Turun musiikkitalo Fuuga", "Musiikkitalo Fuuga"]
 exclude_children = true
 exclude_pensioners = true
 exclude_reading = true
@@ -95,7 +98,7 @@ language_learning = []  # Recognized by Finnish-learning text rather than source
 [sources.art_master]
 enabled = true
 base_url = "https://ru.art-master.fi"
-municipalities = ["Tampere", "Nokia", "Ylöjärvi", "Pirkkala", "Kangasala", "Lempäälä", "Jyväskylä", "Helsinki"]
+municipalities = ["Tampere", "Nokia", "Ylöjärvi", "Pirkkala", "Kangasala", "Lempäälä", "Jyväskylä", "Helsinki", "Turku"]
 delivery_languages = ["ru"]
 # Treat this Russian theatre's calendar as Russian-language performances.
 # Set [] to require explicit language statements on each event instead.
@@ -104,6 +107,8 @@ performance_languages = ["ru"]
 # Scores are editorial priorities, not probabilities. Model findings remain
 # advisory until the comparison report has been evaluated on labeled examples.
 [selection]
+# Prefer Tampere among otherwise comparable eligible events.
+tampere_priority_bonus = 10
 enabled = true
 daily_limit = 7
 minimum_score = 50
@@ -116,3 +121,16 @@ classification_budget = 5
 enabled = true
 max_events = 10
 
+
+# City calendars: only events with evidence of Russian as an event language.
+[sources.helsinki]
+enabled = true
+base_url = "https://api.hel.fi/linkedevents/v1"
+municipalities = ["Helsinki"]
+
+[sources.turku]
+enabled = true
+base_url = "https://kalenteri.turku.fi"
+collection_id = "64eb1340b3df576fc965b8a7"
+area_id = "area-4"
+municipalities = ["Turku"]

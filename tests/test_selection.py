@@ -46,6 +46,27 @@ class SelectionTests(unittest.TestCase):
         self.store.ingest(events, today, next_month(today))
         return self.store.pending(today, ['ru', 'en'], HASHES, include_updates=True)
 
+    def test_tampere_priority_over_comparable_nearby_events(self):
+        events = [event(1, municipality='Nokia'), event(2, municipality='Kangasala'), event(3)]
+        ranked, decisions = rank_pending(self.store, self.pending(events), self.config, TODAY, HASHES)
+        self.assertEqual(ranked[0][1].municipality, 'Tampere')
+        self.assertEqual(decisions[ranked[0][0]]['location_priority'], 10)
+        self.assertEqual({info['score'] for info in decisions.values()}, {score_event(events[0], self.config, TODAY)[0]})
+        self.config['selection']['tampere_priority_bonus'] = 0
+        ranked, _ = rank_pending(self.store, self.store.pending(TODAY, ['ru', 'en'], HASHES), self.config, TODAY, HASHES)
+        self.assertEqual(ranked[0][1].municipality, 'Nokia')
+
+    def test_stronger_nearby_event_can_outrank_tampere(self):
+        ranked, _ = rank_pending(self.store, self.pending([event(1), event(2, municipality='Nokia', performance_languages=['ru'])]),
+                                 self.config, TODAY, HASHES)
+        self.assertEqual(ranked[0][1].municipality, 'Nokia')
+
+    def test_weekly_digest_uses_tampere_priority(self):
+        from happeninki.digest import shortlist
+        events = [event(1, municipality='Nokia'), event(2, municipality='Kangasala'), event(3)]
+        selected = shortlist(events, self.config, date(2026, 10, 18), 'ru')
+        self.assertEqual(selected[0][0].municipality, 'Tampere')
+
     def test_venue_identity_and_regression_exclusions(self):
         self.assertFalse(venue_matches('Telakka, Tullikamarin aukio 3', ['Tullikamari']))
         self.assertFalse(venue_matches('Fake G LivelabX, Street 1', ['G Livelab']))

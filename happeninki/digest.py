@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from .filters import event_exclusion_reason
 from .http import RemoteError, RequestDeadlineExceeded
 from .models import safe_url
-from .selection import performance_key, score_event
+from .selection import performance_key, score_event, location_priority
 from .telegram import TelegramThrottled, channel_hash, date_range_label
 from .translator import TranslationUnavailable
 
@@ -53,7 +53,7 @@ def shortlist(events, config, today, language):
             score, _ = score_event(projected, config, start)
             if config.get('selection', {}).get('enabled') and score < config['selection'].get('minimum_score', 0):
                 continue
-            candidates.append((score, projected))
+            candidates.append((score + location_priority(projected, config), projected))
     candidates.sort(key=lambda item: (-item[0], item[1].next_occurrence(start), item[1].source_key))
     seen, selected = set(), []
     for score, event in candidates:
