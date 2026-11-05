@@ -374,6 +374,54 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(row[2], [other])
 
 
+
+    def test_temporary_google_outage_is_warning_and_preserves_both_languages(self):
+        self.ingest([event()])
+        calls, checkpoints = [], []
+        class Unavailable:
+            def translate(self, event, language):
+                calls.append(language)
+                raise TranslationUnavailable("google HTTP 500", transient=True)
+        with self.assertLogs('happeninki', level='WARNING') as logs:
+            result = publish_pending(self.store, self.config, Unavailable(), self.telegram,
+                TODAY, lambda _: checkpoints.append(1), time.monotonic() + 10)
+        self.assertEqual(result, (0, 0))
+        self.assertEqual(calls, ['ru'])
+        self.assertTrue(checkpoints)
+        self.assertTrue(all('ERROR' not in line for line in logs.output))
+        self.assertEqual(self.telegram.calls, [])
+        self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["ru", "en"])
+
+    def test_outage_after_success_preserves_receipt_and_cached_translation(self):
+        self.ingest([event()])
+        calls = []
+        class Editor:
+            def translate(self, item, language):
+                calls.append(language)
+                if language == 'en':
+                    raise TranslationUnavailable("google HTTP 503", transient=True)
+                return {"title": "Title", "summary": "Summary"}
+        with self.assertLogs('happeninki', level='WARNING'):
+            result = publish_pending(self.store, self.config, Editor(), self.telegram,
+                TODAY, lambda _: None, time.monotonic() + 10)
+        self.assertEqual(result, (1, 0))
+        self.assertEqual(calls, ['ru', 'en'])
+        self.assertIsNotNone(self.store.translation(event(), 'ru'))
+        self.assertEqual(self.store.pending(TODAY, ["ru", "en"], HASHES)[0][2], ["en"])
+
+    def test_unexpected_failure_before_outage_is_not_hidden(self):
+        self.ingest([event()])
+        class Editor:
+            def translate(self, item, language):
+                if language == 'ru':
+                    raise ValueError('Malformed model response')
+                raise TranslationUnavailable("google HTTP 500", transient=True)
+        with self.assertLogs('happeninki', level='WARNING'):
+            result = publish_pending(self.store, self.config, Editor(), self.telegram,
+                TODAY, lambda _: None, time.monotonic() + 10)
+        self.assertEqual(result, (0, 1))
+
+
 class PublicationDeadlineTests(unittest.TestCase):
     def test_release_persistence_is_not_blocked_by_work_deadline(self):
         args = SimpleNamespace(config='config.toml', mode='preview', release_state=True)

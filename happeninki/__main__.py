@@ -89,8 +89,12 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
             except RequestDeadlineExceeded:
                 checkpoint(store)
                 return sent, failures
-            except TranslationUnavailable:
-                LOG.error("Model provider is unavailable or its allowance is exhausted; remaining events stay queued")
+            except TranslationUnavailable as exc:
+                if exc.transient:
+                    LOG.warning("Temporary model provider failure: %s", exc)
+                    checkpoint(store)
+                    return sent, failures
+                LOG.error("Model provider access/model unavailable; remaining events stay queued")
                 checkpoint(store)
                 return sent, failures + 1
             except Exception as exc:
@@ -389,6 +393,12 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
         return run(args)
+    except TranslationUnavailable as exc:
+        if exc.transient:
+            LOG.warning("Temporary model provider failure: %s", exc)
+            return 0
+        LOG.error("Run stopped: %s", exc)
+        return 1
     except Exception as exc:
         LOG.error("Run stopped: %s", exc)
         return 1

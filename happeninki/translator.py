@@ -42,7 +42,9 @@ def parse_translation(content):
 
 
 class TranslationUnavailable(RuntimeError):
-    pass
+    def __init__(self, message="", *, transient=False):
+        super().__init__(message)
+        self.transient = transient
 
 
 class Translator:
@@ -72,6 +74,10 @@ class Translator:
                     headers=headers, service=provider, timeout=90)
                 response = normalize_response(provider, response)
             except RemoteError as exc:
+                if provider == "google" and exc.transient:
+                    raise TranslationUnavailable(
+                        f"{exc}; remaining events stay queued", transient=True
+                    ) from None
                 if exc.status in {401, 403, 404, 429}:
                     raise TranslationUnavailable("Model provider access/model/quota unavailable; remaining events stay queued") from None
                 raise

@@ -153,13 +153,25 @@ def publish_digest(events, config, today, store, translator, telegram, checkpoin
                         checkpoint(store)
                         return sent, failures + 1
                     if translator is None:
-                        raise TranslationUnavailable('Set OLLAMA_API_KEY to translate uncached digest entries')
+                        raise TranslationUnavailable('Set the selected model provider API key to translate uncached digest entries')
                     translation = translator.translate(event, language)
                     store.cache_translation(event, language, translation)
                 entries.append((event, translation))
             message, count = build_digest(entries, language, start, end, catch_up=today.weekday() == 0)
             if not message:
                 raise ValueError('Digest links cannot fit in a single Telegram message')
+        except TranslationUnavailable as exc:
+            if exc.transient:
+                LOG.warning('Weekly digest deferred (%s): temporary model provider failure: %s', language, exc)
+                checkpoint(store)
+                return sent, failures
+            LOG.error('Weekly digest preparation failed (%s): model provider access/model unavailable', language)
+            checkpoint(store)
+            return sent, failures + 1
+        except RequestDeadlineExceeded:
+            LOG.warning('Weekly digest deferred: run budget reached')
+            checkpoint(store)
+            return sent, failures
         except Exception as exc:
             LOG.error('Weekly digest preparation failed (%s): %s', language, type(exc).__name__)
             checkpoint(store)
