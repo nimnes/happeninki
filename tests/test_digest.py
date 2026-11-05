@@ -381,5 +381,47 @@ class DigestTests(unittest.TestCase):
             collect.assert_not_called()
 
 
+    def test_temporary_google_failure_defers_digest_without_failed_run(self):
+        from happeninki.translator import TranslationUnavailable
+        checkpoints = []
+        class Editor:
+            calls = []
+            def translate(self, item, language):
+                self.calls.append(language)
+                raise TranslationUnavailable('google HTTP 500', transient=True)
+        editor = Editor()
+        sender = Telegram()
+        with self.assertLogs('happeninki.digest', level='WARNING') as logs:
+            result = self.publish([event()], editor, sender, lambda _: checkpoints.append(1))
+        self.assertEqual(result, (0, 0))
+        self.assertEqual(editor.calls, ['ru'])
+        self.assertEqual(sender.calls, [])
+        self.assertTrue(checkpoints)
+        self.assertTrue(all('ERROR' not in line for line in logs.output))
+        self.assertIsNone(self.store.weekly_digest('2026-10-12', 'ru', channel_hash('ru')))
+
+    def test_digest_access_failure_still_fails(self):
+        from happeninki.translator import TranslationUnavailable
+        class Editor:
+            def translate(self, item, language):
+                raise TranslationUnavailable('Google authentication failed')
+        with self.assertLogs('happeninki.digest', level='ERROR'):
+            self.assertEqual(self.publish([event()], Editor()), (0, 1))
+
+    def test_temporary_outage_keeps_previously_sent_digest_channel(self):
+        from happeninki.translator import TranslationUnavailable
+        class Editor:
+            def translate(self, item, language):
+                if language == 'en':
+                    raise TranslationUnavailable('google HTTP 503', transient=True)
+                return {'title': 'Title', 'summary': 'Summary'}
+        sender = Telegram()
+        with self.assertLogs('happeninki.digest', level='WARNING'):
+            self.assertEqual(self.publish([event()], Editor(), sender), (1, 0))
+        self.assertEqual([language for language, _ in sender.calls], ['ru'])
+        self.assertEqual(self.store.weekly_digest('2026-10-12', 'ru', channel_hash('ru'))['status'], 'sent')
+        self.assertIsNone(self.store.weekly_digest('2026-10-12', 'en', channel_hash('en')))
+
+
 if __name__ == '__main__':
     unittest.main()

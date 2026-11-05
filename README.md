@@ -308,7 +308,7 @@ that language. Numeric channel IDs are preferable because they stay the same
 when a channel's username changes. Keep tokens in secrets, never in source files.
 
 The default provider is Google with `gemma-4-31b-it`. Override it with Actions
-variables `LLM_PROVIDER` and `GOOGLE_MODEL`. The `[google]` and `[ollama]` tables
+variable `GOOGLE_MODEL`. The publishing workflow fixes `LLM_PROVIDER=google`. The `[google]` and `[ollama]` tables
 in `config.toml` retain separate settings; `[llm].provider` selects the local
 default. An environment `LLM_PROVIDER` overrides that choice.
 
@@ -519,3 +519,26 @@ Preview translations without publishing:
 ```bash
 python -m happeninki --mode preview --translate --limit 3
 ```
+
+### Temporary Google API failures
+
+The publishing workflow uses Google only and does not supply Ollama credentials.
+Google requests receive up to four attempts with exponential backoff and jitter
+(about 5, 10 and 20 seconds). HTTP 408/429/500/502/503/504 and network timeouts
+are retried. Retry-After (seconds or HTTP date) and Google RetryInfo delays are
+honored; cooldowns above 60 seconds are deferred rather than retried early.
+Each request has a 180-second retry budget, each attempt uses a timeout of at
+most 40 seconds, and the existing run/daytime deadline remains in force.
+
+After temporary Google failures exhaust retries, daily publication or weekly
+digest preparation stops with a warning and saves progress. These temporary
+outages do not fail the Action or trigger failure notifications. Selected event
+deliveries remain queued while eligible; already sent posts, cached translations
+and digest receipts are preserved. Weekly digests retain the existing Sunday
+and Monday catch-up schedule.
+
+Authentication, model configuration, malformed model responses, event-source,
+Telegram and state-storage errors retain their existing error handling. A
+temporary outage never clears an earlier processing failure. Logs include safe
+HTTP codes and allowlisted Google status names, not raw API bodies or keys.
+No automatic provider fallback is used.
