@@ -18,7 +18,7 @@ from .sources import collect
 from .store import Store, validate_database
 from .telegram import Telegram, TelegramThrottled, build_message, channel_hash
 from .translator import TranslationUnavailable, Translator
-from .classifier import Classifier, comparison, PROMPT_VERSION
+from .classifier import Classifier, InterestClassifier, comparison, PROMPT_VERSION, INTEREST_PROMPT_VERSION
 from .selection import rank_pending, decision_key
 from .digest import preview_digest, publish_digest
 from .schedule import remaining_active_seconds
@@ -38,6 +38,7 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
     pending = [item for item in pending if item[1].source not in blocked_sources]
     pending, decisions = rank_pending(store, pending, config, today, hashes, now=now)
     report = selection_report(store, pending, decisions, config, classifier, deadline)
+    pending = apply_interest_filter(pending, decisions, report, config)
     report['delivery_holds'] = store.delivery_holds(hashes)
     if report['delivery_holds']:
         LOG.warning('%d uncertain deliveries held; check the channels before resolving them', len(report['delivery_holds']))
@@ -191,7 +192,8 @@ def publish_pending(store, config, translator, telegram, today, checkpoint, dead
 
 
 def selection_report(store, pending, decisions, config, classifier, deadline):
-    report = {'classifier_mode': config.get('selection', {}).get('classifier_mode', 'off'),
+    mode = config.get('selection', {}).get('classifier_mode', 'off')
+    report = {'classifier_mode': mode,
               'classifier_model': config['llm']['model'], 'prompt_version': PROMPT_VERSION,
               'classification_requested': bool(classifier),
               'decisions': decisions, 'classifications': []}
@@ -202,15 +204,42 @@ def selection_report(store, pending, decisions, config, classifier, deadline):
             break
         item = {'event_id': event_id, 'source_key': event.source_key, 'title': event.title}
         try:
-            facts = classifier.classify(event, store)
-            item.update(facts=facts, comparison=comparison(facts, config))
+            if mode == 'filter':
+                result = classifier.classify(event, store)
+                item.update(interest=result, comparison='keep' if result['interesting'] else 'skip: low local interest')
+                report['prompt_version'] = INTEREST_PROMPT_VERSION
+            else:
+                facts = classifier.classify(event, store)
+                item.update(facts=facts, comparison=comparison(facts, config))
         except Exception as exc:
-            LOG.warning('Classification unavailable for %s (%s); shadow publication unaffected', event.source_key, type(exc).__name__)
+            LOG.warning('Classification unavailable for %s (%s); event-interest filter fails open', event.source_key, type(exc).__name__)
             item.update(comparison='unavailable', error=type(exc).__name__)
             report['classifications'].append(item)
             break  # Avoid exhausting the allowance or repeatedly hitting an outage.
         report['classifications'].append(item)
     return report
+
+
+def apply_interest_filter(pending, decisions, report, config):
+    """Remove only newly selected events explicitly rated below threshold."""
+    if config.get('selection', {}).get('classifier_mode') != 'filter':
+        return pending
+    rejected = {row['event_id']: row['interest'] for row in report['classifications']
+                if row.get('interest') and not row['interest']['interesting']}
+    kept = []
+    for item in pending:
+        event_id, event, languages = item
+        interest = rejected.get(event_id)
+        # Already published events can still receive corrections or cancellations.
+        if interest and not decisions.get(event_id, {}).get('update_languages'):
+            info = decisions.get(event_id, {})
+            info.update(status='rejected', reason='Gemini interest score below 3', interest=interest)
+            decisions[event_id] = info
+        else:
+            if event_id in decisions and any(decisions[event_id].get('update_languages', [])):
+                decisions[event_id]['interest'] = interest
+            kept.append(item)
+    return kept
 
 
 def write_selection_report(config, report):
@@ -246,8 +275,9 @@ def run(args):
     from .favourites import Favourites
     telegram = Telegram(http, os.getenv("TELEGRAM_BOT_TOKEN"), channels,
                         favourites=Favourites.from_environment(http)) if args.mode == "publish" else None
-    classifier = (Classifier(http, config['llm'], model_key)
-                  if config.get('selection', {}).get('classifier_mode') == 'shadow'
+    classifier_type = InterestClassifier if config.get('selection', {}).get('classifier_mode') == 'filter' else Classifier
+    classifier = (classifier_type(http, config['llm'], model_key)
+                  if config.get('selection', {}).get('classifier_mode') in {'shadow', 'filter'}
                   and model_key and (args.mode == 'publish' or getattr(args, 'classify', False)) else None)
 
     # Preview always uses a temporary copy, including translation caches.
@@ -319,6 +349,7 @@ def run(args):
                 pending, decisions = rank_pending(store, pending, config, today, hashes,
                                                  now=datetime.now(ZoneInfo(config['timezone'])))
                 report = selection_report(store, pending, decisions, config, classifier, deadline)
+                pending = apply_interest_filter(pending, decisions, report, config)
                 report['delivery_holds'] = store.delivery_holds(hashes)
                 slots = {lang: max(0, config.get('selection', {}).get('daily_limit', args.limit) - store.quota_used(today, hashes[lang])) for lang in preview_languages}
                 selected = []

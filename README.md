@@ -199,15 +199,20 @@ starts compete for one post, even when their advertised end times differ.
 
 The `[selection]` settings control the seven-post limit, minimum score,
 30-day notice window, three-day reconsideration period and
-advisory classifier. `minimum_score = 0` disables the interest threshold.
-`enabled = false`
-restores the original queue behavior; `classifier_mode = "off"` disables only
-model classification. Classification uses the configured provider model and key,
-with at most five candidate classifications per run. It extracts audience, format
-and actual performance language, requires source quotes, and caches results by
-source content, model and prompt version. Unknown fields stay unknown. A failed
-classifier stops further classification for that run and leaves rule-based
-publication unchanged. Model decisions are **comparison only** until evaluated.
+advisory classifier. `minimum_score = 0` disables the rule-based interest threshold.
+`enabled = false` restores the original queue behavior. `classifier_mode = "shadow"`
+compares source-grounded audience, format and performance-language extraction.
+`classifier_mode = "filter"` uses Gemini to rate local public interest from 1–5;
+scores 1–2 are skipped, while 3–5 remain eligible. It is separate from topic and
+personal-preference filters. The prompt values local relevance, unusual events,
+public impact, important developments, entertainment and practical value. Routine,
+small notices score low unless the source gives a concrete reason to include them.
+The model's self-reported confidence is deliberately ignored. At most five
+candidates are classified per run by default. Results are cached by source content,
+model and prompt version. If Gemini is unavailable or returns invalid data, that
+run fails open and keeps the event. Already published events can still receive
+updates. Review `data/selection.json` and manually label examples before treating
+the filter as reliable; model scores are not popularity measures.
 
 For a read-only comparison without posting:
 
@@ -217,6 +222,9 @@ python -m happeninki --mode preview --classify --output data/preview.json
 
 Ordinary previews work without model access. `--classify` explicitly enables
 model calls for preview; translations remain a separate `--translate` option.
+The default configuration uses `gemini-3.5-flash-lite` for the filter; set
+`GOOGLE_API_KEY` to enable calls. Run the preview above before publishing to inspect
+which listings Gemini would skip.
 The workflow offers `classify_preview` and saves comparison JSON as an artifact.
 Preview includes scores, reasons, proposed languages, deferred languages and
 model findings. A publish run also saves `data/selection.json` for inspection.

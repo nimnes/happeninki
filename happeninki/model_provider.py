@@ -35,6 +35,9 @@ def build_request(provider, url, key, payload):
         body["systemInstruction"] = {"parts": [{"text": instructions}]}
     if payload.get("options", {}).get("num_predict"):
         body["generationConfig"]["maxOutputTokens"] = payload["options"]["num_predict"]
+    if payload.get('response_schema'):
+        body['generationConfig']['responseMimeType'] = 'application/json'
+        body['generationConfig']['responseSchema'] = payload['response_schema']
     return url, {"x-goog-api-key": key}, body
 
 

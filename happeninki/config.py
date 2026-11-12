@@ -84,8 +84,8 @@ def load_config(path="config.toml"):
         selection.setdefault(key, value)
     if not isinstance(selection.get('enabled', False), bool):
         raise ValueError('selection.enabled must be true or false')
-    if selection.get('classifier_mode', 'off') not in {'off', 'shadow'}:
-        raise ValueError('selection.classifier_mode must be off or shadow')
+    if selection.get('classifier_mode', 'off') not in {'off', 'shadow', 'filter'}:
+        raise ValueError('selection.classifier_mode must be off, shadow or filter')
     if (not isinstance(selection['minimum_score'], int) or isinstance(selection['minimum_score'], bool)
             or selection['minimum_score'] < 0):
         raise ValueError('selection.minimum_score must be a nonnegative integer')

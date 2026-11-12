@@ -60,7 +60,7 @@ provider = "google"
 
 [google]
 url = "https://generativelanguage.googleapis.com/v1beta"
-model = "gemma-4-31b-it"
+model = "gemini-3.5-flash-lite"
 max_description_chars = 3500
 
 [ollama]
@@ -114,7 +114,7 @@ daily_limit = 7
 minimum_score = 50
 lead_days = 30
 reconsider_days = 3
-classifier_mode = "shadow"
+classifier_mode = "filter"
 classification_budget = 5
 
 [digest]
