@@ -23,7 +23,7 @@ class GoogleProviderTests(unittest.TestCase):
 
     def test_google_is_default_and_ollama_is_configuration_only(self):
         self.assertEqual(self.settings['provider'], 'google')
-        self.assertEqual(self.settings['model'], 'gemma-4-31b-it')
+        self.assertEqual(self.settings['model'], 'gemini-3.5-flash-lite')
         with patch.dict('os.environ', {'LLM_PROVIDER': 'ollama', 'OLLAMA_MODEL': 'test-model'}):
             settings = load_config()['llm']
         self.assertEqual(settings['provider'], 'ollama')
